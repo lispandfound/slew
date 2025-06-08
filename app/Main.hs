@@ -61,6 +61,9 @@ data AppState = AppState
 data Name = SearchEditor | JobListWidget
   deriving (Eq, Ord, Show)
 
+text :: Text -> Widget n
+text = str . T.unpack
+
 -- Generate lenses
 $(makeLenses ''JobInfo)
 $(makeLenses ''SacctEntry)
@@ -118,11 +121,11 @@ getSelectedJob :: AppState -> Maybe JobInfo
 getSelectedJob = fmap snd . listSelectedElement . view jobList
 
 -- Get relevant sacct entries for selected job
-getRelevantSacctEntries :: AppState -> [SacctEntry]
+getRelevantSacctEntries :: AppState -> Maybe SacctEntry
 getRelevantSacctEntries st = 
   case getSelectedJob st of
-    Nothing -> take 5 $ st ^. sacctInfo
-    Just job -> filter ((== show (job ^. jobId)) . view sacctJobId) $ st ^. sacctInfo
+    Nothing -> Nothing
+    Just job -> find ((== show (job ^. jobId)) . view sacctJobId) $ st ^. sacctInfo
 
 -- Update job list with filtered results
 updateJobList :: Text -> AppState -> AppState
@@ -143,9 +146,7 @@ drawApp st = [ui]
 
 -- Draw search bar using lenses
 drawSearchBar :: AppState -> Widget Name
-drawSearchBar st = 
-  vLimit 3 . borderWithLabel (str "Search Jobs") . padAll 1 $
-  renderEditor (str . T.unpack . T.unlines) True $ st ^. searchEditor
+drawSearchBar st = str "Search Jobs: " <+> (renderEditor (text . T.unlines) True $ st ^. searchEditor)
 
 -- Draw job list using lenses
 drawJobList :: AppState -> Widget Name
@@ -174,11 +175,11 @@ drawJobItem selected job =
   in style . padRight Max . vBox $
     [ hBox
       [ padRight (Pad 2) . str . show $ job ^. jobId
-      , padRight (Pad 2) . str . T.unpack . T.take 12 $ job ^. jobName
-      , padRight (Pad 2) . str . T.unpack . T.take 8 $ job ^. user
+      , padRight (Pad 2) . text . T.take 12 $ job ^. jobName
+      , padRight (Pad 2) . text . T.take 8 $ job ^. user
       , padRight (Pad 2) . str . take 10 . show $ job ^. jobState
       , padRight (Pad 2) . str . take 10 . formatTime $ job ^. runTime
-      , str . T.unpack $ job ^. nodeList
+      , text $ job ^. nodeList
       ]
     ]
 
@@ -193,25 +194,20 @@ drawJobListHelp =
 
 -- Draw sacct panel using lenses
 drawSacctPanel :: AppState -> Widget Name
-drawSacctPanel st =
-  let relevantSacct = getRelevantSacctEntries st
-  in vLimit 50 . hLimit 60 . borderWithLabel (str "Job Accounting (sacct)") $
-     case relevantSacct of
-       [] -> padAll 1 $ str "No accounting data available"
-       entries -> padAll 1 . vBox $ map drawSacctEntry entries
+drawSacctPanel = borderWithLabel (str "Job Accounting (sacct)") . hLimit 60 . maybe (str "No accounting data available") drawSacctEntry . getRelevantSacctEntries
 
 -- Draw individual sacct entry using lenses
 drawSacctEntry :: SacctEntry -> Widget Name
 drawSacctEntry entry = vBox
-  [ hBox [str "Job ID: ", str . T.unpack $ entry ^. sacctJobId]
-  , hBox [str "Name: ", str . T.unpack $ entry ^. sacctJobName]
-  , hBox [str "State: ", str . T.unpack $ entry ^. sacctState]
-  , hBox [str "Submit: ", str . T.unpack . T.take 16 $ entry ^. sacctSubmit]
-  , hBox [str "Start: ", str . T.unpack . T.take 16 $ entry ^. sacctStart]
-  , hBox [str "End: ", str . T.unpack . T.take 16 $ entry ^. sacctEnd]
-  , hBox [str "Elapsed: ", str . T.unpack $ entry ^. sacctElapsed]
-  , hBox [str "CPU Time: ", str . T.unpack $ entry ^. sacctCPUTime]
-  , hBox [str "Max RSS: ", str . T.unpack $ entry ^. sacctMaxRSS]
+  [ hBox [str "Job ID: ", text $ entry ^. sacctJobId]
+  , hBox [str "Name: ", text $ entry ^. sacctJobName]
+  , hBox [str "State: ", text $ entry ^. sacctState]
+  , hBox [str "Submit: ", text . T.take 16 $ entry ^. sacctSubmit]
+  , hBox [str "Start: ", text . T.take 16 $ entry ^. sacctStart]
+  , hBox [str "End: ", text . T.take 16 $ entry ^. sacctEnd]
+  , hBox [str "Elapsed: ", text $ entry ^. sacctElapsed]
+  , hBox [str "CPU Time: ", text $ entry ^. sacctCPUTime]
+  , hBox [str "Max RSS: ", text $ entry ^. sacctMaxRSS]
   , str " "
   ]
 
@@ -237,7 +233,9 @@ handleSearchEvent e = do
 handleEvent :: BrickEvent Name e -> EventM Name AppState ()
 handleEvent  (VtyEvent (V.EvKey V.KEsc [])) = halt 
 handleEvent  (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt 
-handleEvent (VtyEvent e) = zoom jobList (handleListEvent e) >> handleSearchEvent e
+handleEvent (VtyEvent e@(V.EvKey V.KUp [])) = zoom jobList (handleListEvent e)
+handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e)
+handleEvent (VtyEvent e) = handleSearchEvent e >> zoom jobList (handleListEvent e)
 
 -- Application attributes
 appAttrs :: AttrMap
