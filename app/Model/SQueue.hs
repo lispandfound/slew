@@ -1,3 +1,4 @@
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
@@ -9,6 +10,7 @@ import Data.Text (Text)
 import GHC.Generics hiding (Meta)
 import Control.Applicative ((<|>))
 import Model.Job hiding (cpus, nodes)
+import Control.Lens
 
 -- | Main response structure
 data SlurmResponse = SlurmResponse
@@ -16,6 +18,7 @@ data SlurmResponse = SlurmResponse
   , errors :: [Text]
   , jobs :: [Job]
   } deriving (Show, Generic, FromJSON)
+
 
 
 -- | Meta information about the response
