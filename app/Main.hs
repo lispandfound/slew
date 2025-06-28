@@ -259,11 +259,11 @@ app = App
 squeueThread :: BC.BChan SlewEvent -> IO ThreadId
 squeueThread chan = forkIO $ do 
     forever $ do  
-	    squeueFile <- readCreateProcess (shell "squeue") ""
-	    case decode (fromString squeueFile) of 
-		Just sqStatus -> BC.writeBChan chan . SQueueStatus $ jobs sqStatus
-		_ -> pure ()
-            threadDelay 30_000_000
+      squeueFile <- readCreateProcess (shell "squeue") ""
+      case decode (fromString squeueFile) of
+        Just sqStatus -> BC.writeBChan chan . SQueueStatus $ jobs sqStatus
+        _ -> pure ()
+      threadDelay 30_000_000
 
 
 -- Main function
