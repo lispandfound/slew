@@ -71,7 +71,7 @@ executable slew
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base >= 4.19.2.0, relude, brick, lens, vector, vty, fmt, linear, aeson, vty-crossplatform, bytestring, process, time, zippers
+    build-depends:    base >= 4.19.2.0, relude, brick, lens, vector, vty, fmt, linear, aeson, vty-crossplatform, bytestring, process, time, rosezipper
 
     -- Directories containing source files.
     hs-source-dirs:   app

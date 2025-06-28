@@ -4,29 +4,25 @@ module UI.Transient where
 import Brick hiding (style)
 import Control.Lens hiding (children)
 import qualified Graphics.Vty as V
-import Brick.Widgets.Border
-import Control.Zipper 
+import Brick.Widgets.Border ( hBorderWithLabel )
+import Data.Tree.Zipper
+import Data.Tree
 
-type AppEvent s n = EventM s n ()
 
-data TransientMenu s n = Menu {
-    _style :: Maybe AttrName
-    , _command :: Maybe (AppEvent s n)
-    , _description :: Text
-    , _children :: Map Char (TransientMenu s n)
-} 
 
-makeLenses ''TransientMenu
+data TransientPrefix m = TransientPrefix {
+  _char :: Char
+  , _style :: AttrName
+  , _name :: Text
+  , _command :: Maybe m
+  }
+makeLenses ''TransientPrefix
+type TransientState m = TreePos Full (TransientPrefix m)
 
-type TransientState s n = Zipper (TransientMenu s n) (TransientMenu s n)
-
-renderTransientView :: TransientState s n -> Widget n
-renderTransientView menu = vBox [
-    hBorderWithLabel (menu ^. description) 
-    , hBox (map childLabel $ toList (menu ^. children))
-    ]
-    where childLabel (key, menu) = withAttr (menu ^. style) (str [key, ':']) <+> txt (menu ^. description)  
-
-handleTransientEvent :: V.Event -> EventM (TransientState s n) n (Maybe (AppEvent s n))
-handleTransientEvent = undefined 
-
+renderTransientView :: TransientState e -> Widget n
+renderTransientView menu = go (tree menu)
+    where childLabel menu = withAttr (menu ^. style) (str [menu ^. char, ':']) <+> txt (menu ^. name)
+          go current = vBox [
+            hBorderWithLabel (txt $ (rootLabel current) ^. name)
+            , hBox (map (childLabel . rootLabel) $ subForest current)
+            ]
