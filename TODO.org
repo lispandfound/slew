@@ -1,61 +1,64 @@
 #+title: Slew Project TODO
+* Backlog
+** TODO Log shell command outputs
+** TODO Report shell command errors
 
-
-*  Tier 0 — Core SLURM Features
-** DONE Job table
+* Roadmap
+**  Tier 0 — Core SLURM Features
+*** DONE Job table
 Reusable component with focus state, scroll offset, and filtered data in Model
-** DONE Job Table Filtering
-** TODO Job Table Sorting
-** DONE Job details
+*** DONE Job Table Filtering
+*** TODO Job Table Sorting
+*** DONE Job details
 Modal or split-pane detail view conditionally shown in View based on selected job
-** TODO Cancel job
+*** TODO Cancel job
 Msg triggered on keypress, update triggers external IO via Cmd (calls scancel)
-* Tier 1 — Low-Hanging UX Wins
-** TODO Resubmit/clone job
+** Tier 1 — Low-Hanging UX Wins
+*** TODO Resubmit/clone job
 Pressing key → emit Msg → handler constructs sbatch string and spawns a Cmd
-** TODO Export to CSV
+*** TODO Export to CSV
 Cmd that writes to file or clipboard, possibly triggered by Msg
-** TODO Log preview (tail)
+*** TODO Log preview (tail)
 Use Cmd to spawn tail process → output read into Msg → render in scrollable window
-** TODO Pending reason
+*** TODO Pending reason
 On select or hover, fetch with Cmd, cached in state (Map JobId Reason)
-* Tier 2 — Interactive and Composable
-** TODO Live CPU/RAM on Job
+** Tier 2 — Interactive and Composable
+*** TODO Live CPU/RAM on Job
 Background polling Cmd, updating state (e.g., Map JobId ResourceUsage)
-** TODO Job status timeline
+*** TODO Job status timeline
 Maintain a timestamped event log per job in model, render as a bar/timeline
-** TODO Sbatch templates
+*** TODO Sbatch templates
 Managed like "named presets", a list of templates in model, pick with a list view
-** TODO File outputs
+*** TODO File outputs
 Use job metadata to show clickable filenames or paths → render preview on select
-** TODO Interactive search bar
+*** TODO Interactive search bar
 Composable widget (like textbox) → on change, updates filter state in parent
-* Tier 3 — State-Rich Components
-** TODO Cluster grid view
+** Tier 3 — State-Rich Components
+*** TODO Cluster grid view
 A 2D grid component with zoom/pan, node states loaded via Cmd, decoupled from job list
-** TODO Usage heatmap
+*** TODO Usage heatmap
 Render calendar view from usage data (precomputed by Cmd, lives in model)
-** TODO Group/team view
+*** TODO Group/team view
 Swap filter preset based on SLURM account/group → all filters as pure functions in Model
-** TODO Scrollable log with ANSI
+*** TODO Scrollable log with ANSI
 Treat like a buffer with scroll offset, parse ANSI sequences into colored spans
-** TODO Job leaderboard
+*** TODO Job leaderboard
 Sort + reduce over all jobs/users → render summary table (pure function)
-* Tier 4 — Smarter Features
-** TODO "Why is job pending?"
+** Tier 4 — Smarter Features
+*** TODO "Why is job pending?"
 Diagnostic engine as pure function; present output in modal or side pane
-** TODO Job suggestions
+*** TODO Job suggestions
 Offline job history as lookup table → analyzed in Update, surfaced on select
-** TODO Plugin system
+*** TODO Plugin system
 Dynamically load components or handlers from config or external executables (shell hook Cmds)
-** TODO Command mode (:)
+*** TODO Command mode (:)
 Modal textbox with its own parser → emits structured Msg like :cancel 12345
-** TODO Auto-sbatch generation
+*** TODO Auto-sbatch generation
 Parse old job → build sbatch string from state → use preview modal before submit
-* Tier 5 — Delightful Extras
-** TODO SLURM message inbox
+** Tier 5 — Delightful Extras
+*** TODO SLURM message inbox
 Background poll + cached messages in state (simple list view with read/unread flags)
-** TODO Shell into node
+*** TODO Shell into node
 Emits Cmd to srun --jobid, spawns subshell or informs user
-** TODO Node fit visualiser
+*** TODO Node fit visualiser
 On job select → compute constraints → map to node grid and render fit indicators
