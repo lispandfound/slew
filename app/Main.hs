@@ -25,8 +25,8 @@ import Data.List (isInfixOf)
 import qualified Data.Text as T
 import Model.SQueue (jobs)
 import Model.Job
+import qualified UI.Transient as TR
 
-import Brick
 import Brick.Widgets.Border
 import Brick.Widgets.Border.Style
 import Brick.Util (fg)
@@ -35,6 +35,7 @@ import Data.Maybe (fromMaybe)
 import Data.Time.Clock.POSIX (posixSecondsToUTCTime)
 import qualified Data.Time.Format as TF 
 import GHC.Generics (Generic)
+import UI.Transient (handleTransientEvent)
 
 
 -- Helper to format Unix timestamps to human-readable time
@@ -93,13 +94,16 @@ drawJobPanel job =
     , labeledField "State Reason" (stateReason job)
     ]
 
---
+
+data TransientMsg = Cancel | Hold | Suspend | Resume | Hold | Release | Top | Nice | TimeLimit  deriving (Show, Eq)
+
 -- Application state
 data AppState = AppState
   { _searchEditor :: Editor Text Name
   , _jobList :: GenericList Name Vec.Vector Job
   , _allJobs :: [Job]
   , _selectedJob :: Maybe Job
+  , _transient :: Maybe (TR.TransientState TransientMsg)
   } deriving (Show)
 
 data SlewEvent = SQueueStatus [Job]
@@ -107,6 +111,18 @@ data SlewEvent = SQueueStatus [Job]
 -- Widget names
 data Name = SearchEditor | JobListWidget
   deriving (Eq, Ord, Show)
+
+
+testTransient = TR.menu "Control" $ mconcat
+  [ TR.item 'c' "Cancel" Cancel
+  , TR.item 'h' "Hold" Hold
+  , TR.item 's' "Suspend" Suspend
+  , TR.item 'r' "Resume" Resume
+  , TR.submenu 'p' "Job Priority" $ mconcat
+      [ TR.item 't' "Set Top" Top
+      , TR.item 'p' "Set Priority" Nice
+      ]
+  ]
 
 text :: Text -> Widget n
 text = str . T.unpack
@@ -121,6 +137,7 @@ initialState = AppState
   , _jobList = list JobListWidget mempty 1
   , _allJobs = mempty
   , _selectedJob = Nothing
+  , _transient = Nothing
   }
 
 -- Filter jobs based on search term using lenses
@@ -159,6 +176,7 @@ drawApp st = [ui]
       , hBorder
       , drawJobList st
       , maybe (str "") drawJobPanel (st ^. selectedJob)
+      , maybe (str "") TR.drawTransientView (st ^. transient)
       ]
 
 -- Draw search bar using lenses
@@ -213,16 +231,35 @@ selectJob :: EventM Name AppState ()
 selectJob = do
     selectedElement <- preuse (jobList . listSelectedElementL)
     selectedJob .= selectedElement
-    
 
+shell :: String -> BrickEvent Name AppState ()
+shell cmd = do
+  cmdHandle <- spawnCommand cmd
+  void $ waitForProcess cmdHandle
 
+handleTransientMsg :: TransientMsg -> BrickEvent Name AppState ()
+handleTransientMsg Cancel = gets getSelectedJob >>= shell . cancelCmd
+  where cancelCmd = fmt
 -- Handle events with pattern matching at function level
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
-handleEvent  (VtyEvent (V.EvKey V.KEsc [])) = halt 
-handleEvent  (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt 
+handleEvent  (VtyEvent e@(V.EvKey V.KEsc [])) = do
+  msg <- getFirst <$> zoom (transient . _Just) (handleTransientEvent e)
+  case msg of
+    Just TR.Close -> transient .= Nothing
+    Just TR.Up -> pure ()
+    _ -> halt
+handleEvent  (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
 handleEvent (VtyEvent e@(V.EvKey V.KUp [])) = zoom jobList (handleListEvent e) >> selectJob
 handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e) >> selectJob
-handleEvent (VtyEvent e) = handleSearchEvent e >> selectJob
+handleEvent (VtyEvent e@(V.EvKey (V.KChar 'c') [V.MCtrl])) = transient .= Just testTransient
+handleEvent (VtyEvent e) = do
+  msg <- getFirst <$> zoom (transient . _Just) (handleTransientEvent e)
+  case msg of
+    Just TR.Close -> transient .= Nothing
+    Just (TR.Msg m) -> transient .= Nothing >> handleTransientMsg m
+    Just _ -> pure ()
+    Nothing -> handleSearchEvent e >> selectJob
+
 handleEvent e@(AppEvent (SQueueStatus sqJobs)) = do 
     jobList %= listReplace (fromList sqJobs) (Just 0)
     allJobs .= sqJobs
