@@ -26,3 +26,17 @@ renderTransientView menu = go (tree menu)
             hBorderWithLabel (txt $ (rootLabel current) ^. name)
             , hBox (map (childLabel . rootLabel) $ subForest current)
             ]
+
+
+findChild :: (a -> Bool) -> TreePos Full a -> Maybe (TreePos Full a)
+findChild p pos = firstChild pos >>= go
+  where
+    go tp
+      | p (label tp) = Just tp
+      | otherwise    = next tp >>= go
+
+
+handleTransientEvent :: V.Event -> EventM n (Maybe (TransientState m)) ()
+handleTransientEvent (V.EvKey V.KEsc []) = modify (>>= parent)
+handleTransientEvent (V.EvKey (V.KChar c) []) = modify (>>= (findChild ((== c) . view char)))
+handleTransientEvent _ = pure ()
