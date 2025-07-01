@@ -53,19 +53,18 @@ extra-doc-files:    CHANGELOG.md
 
 
 executable slew
+    ghc-options: -threaded -rtsopts -Wall -O2
     -- Import common warning flags.
     -- import:           warnings
     mixins:   base hiding (Prelude)
         , relude (Relude as Prelude)
         , relude
-    ghc-options:
-      -threaded
 
     -- .hs or .lhs file containing the Main module.
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Model.SQueue Model.Job Model.AllocatedNode Model.JobResources UI.Transient
+    other-modules: Model.SQueue Model.Job Model.AllocatedNode Model.JobResources UI.Transient Model.AppState UI.View UI.Event SQueue.Poller
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -78,5 +77,3 @@ executable slew
 
     
 
-    -- Base language which the package is written in.
-    default-language: GHC2024

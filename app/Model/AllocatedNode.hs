@@ -4,10 +4,6 @@
 module Model.AllocatedNode where 
 
 import Data.Aeson
-import Data.Aeson.Types (Parser)
-import Data.Text (Text)
-import GHC.Generics 
-import Control.Applicative ((<|>))
 
 -- | Individual node allocation details
 data AllocatedNode = AllocatedNode
