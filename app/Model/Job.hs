@@ -4,11 +4,21 @@
 module Model.Job where
 
 import Data.Aeson
-import Data.Aeson.Casing (aesonPrefix, snakeCase)
+import Data.Aeson.Casing (snakeCase)
 import Data.Time.Clock.System (SystemTime)
 import Data.Time.Clock (DiffTime)
 
 data Quantity a = Unset | Infinite | Set a deriving (Show, Eq)
+
+instance Ord a => Ord (Quantity a) where
+  compare Unset Unset = EQ
+  compare Infinite Infinite = EQ
+  compare Unset _ = LT
+  compare _ Unset = GT
+  compare Infinite _ = GT
+  compare _ Infinite = LT
+  compare (Set x) (Set y) = compare x y
+
 
 showWith :: IsString b => (a -> b) -> Quantity a -> b
 showWith _ Unset = "not set"

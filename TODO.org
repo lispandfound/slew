@@ -8,10 +8,10 @@
 *** DONE Job table
 Reusable component with focus state, scroll offset, and filtered data in Model
 *** DONE Job Table Filtering
-*** TODO Job Table Sorting
+*** DONE Job Table Sorting
 *** DONE Job details
 Modal or split-pane detail view conditionally shown in View based on selected job
-*** TODO Cancel job
+*** DONE Cancel job
 Msg triggered on keypress, update triggers external IO via Cmd (calls scancel)
 ** Tier 1 — Low-Hanging UX Wins
 *** TODO Resubmit/clone job

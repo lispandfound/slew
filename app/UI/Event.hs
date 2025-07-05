@@ -4,7 +4,6 @@
 module UI.Event
   ( handleEvent
   , handleSearchEvent
-  , handleTransientMsg
   , shellWithJob
   ) where
 
@@ -21,19 +20,47 @@ import qualified UI.Transient as TR
 import Model.AppState
 import Model.Job
 
-scontrolTransient :: TR.TransientState TransientMsg
+scontrolTransient :: TR.TransientState SlewEvent
 scontrolTransient = TR.menu "Job Control" $ mconcat
   [ TR.submenu 's' "State Control" $ mconcat
-      [ TR.item 'h' "Hold" Hold
-      , TR.item 'r' "Resume" Resume
-      , TR.item 's' "Suspend" Suspend
-      , TR.item 'c' "Cancel" Cancel
+      [ TR.item 'h' "Hold" (SControl Hold)
+      , TR.item 'r' "Resume" (SControl Resume)
+      , TR.item 's' "Suspend" (SControl Suspend)
+      , TR.item 'c' "Cancel" (SControl Cancel)
       ]
   , TR.submenu 'p' "Priority" $ mconcat
-      [ TR.item 't' "Top" Top
+      [ TR.item 't' "Top" (SControl Top)
       ]
   ]
 
+sortTransient :: TR.TransientState SlewEvent
+sortTransient = TR.menu "Job Sorting" $ mconcat [
+  TR.item 'a' "Account" (SortBy Account)
+  , TR.item 'c' "CPUs" (SortBy CPUs)
+  , TR.item 's' "Start Time"  (SortBy StartTime)
+  , TR.item 'e' "End Time" (SortBy EndTime)
+  , TR.item 'j' "Job Name" (SortBy JobName)
+  , TR.item 'u' "User Name" (SortBy UserName)
+  , TR.item 'm' "Memory (per node)" (SortBy Memory)
+                                                ]
+
+sortListByCat :: Category -> [Job] -> [Job]
+sortListByCat Account = sortOn account
+sortListByCat CPUs = sortOn cpus
+sortListByCat StartTime = sortOn startTime
+sortListByCat EndTime = sortOn endTime
+sortListByCat JobName = sortOn name
+sortListByCat UserName = sortOn userName
+sortListByCat Memory = sortOn memoryPerNode
+
+
+updateList :: [Job] -> EventM Name AppState ()
+updateList jobs = do
+  currentSortKey <- use sortKey
+  let sortedJobs = maybe jobs (`sortListByCat` jobs) currentSortKey
+  jobList %= listReplace (Vec.fromList sortedJobs) (Just 0)
+  allJobs .= sortedJobs
+  searchJobList
 
 -- | Main event handler
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
@@ -51,18 +78,31 @@ handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e)
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
   transient .= Just scontrolTransient -- could parameterise this
 
+handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
+  transient .= Just sortTransient -- could parameterise this
+
 handleEvent (VtyEvent e) = do
   msg <- getFirst <$> zoom (transient . _Just) (TR.handleTransientEvent e)
   case msg of
     Just TR.Close      -> transient .= Nothing
-    Just (TR.Msg msg') -> transient .= Nothing >> handleTransientMsg msg'
+    Just (TR.Msg msg') -> transient .= Nothing >> handleEvent (AppEvent msg')
     Just TR.Next          -> pure ()
     _                  -> handleSearchEvent e >> selectJob
 
-handleEvent (AppEvent (SQueueStatus jobs)) = do
-  jobList %= listReplace (Vec.fromList jobs) (Just 0)
-  allJobs .= jobs
-  searchJobList
+handleEvent (AppEvent (SQueueStatus jobs)) = updateList jobs
+handleEvent (AppEvent (SortBy category)) = do
+  sortKey .= Just category
+  jobs <- use allJobs
+  updateList jobs
+handleEvent (AppEvent (SControl Cancel)) = shellWithJob cancelCmd
+  where cancelCmd job = "scancel " +| jobId job |+ ""
+handleEvent (AppEvent (SControl Hold)) = shellWithJob (scontrol "hold")
+handleEvent (AppEvent (SControl Resume)) = shellWithJob (scontrol "resume")
+handleEvent (AppEvent (SControl Suspend)) = shellWithJob (scontrol "suspend")
+handleEvent (AppEvent (SControl Release)) = shellWithJob (scontrol "release")
+handleEvent (AppEvent (SControl Top)) = shellWithJob topCmd
+  where topCmd job = "scontrol update job=" +| jobId job |+ " priority=Top"
+
 
 handleEvent _ = pure ()
 
@@ -101,19 +141,8 @@ shellWithJob f = do
     Just job ->
       do
         (exec . f) job
-
     Nothing -> pure ()
 
 
 scontrol :: String -> Job -> String
 scontrol verb job = "scontrol " +| verb |+ " " +| jobId job |+ ""
-
-handleTransientMsg :: TransientMsg -> EventM Name AppState ()
-handleTransientMsg Cancel = shellWithJob cancelCmd
-  where cancelCmd job = "scancel " +| jobId job |+ ""
-handleTransientMsg Hold = shellWithJob (scontrol "hold")
-handleTransientMsg Resume = shellWithJob (scontrol "resume")
-handleTransientMsg Suspend = shellWithJob (scontrol "suspend")
-handleTransientMsg Release = shellWithJob (scontrol "release")
-handleTransientMsg Top = shellWithJob topCmd
-  where topCmd job = "scontrol update job=" +| jobId job |+ " priority=Top"

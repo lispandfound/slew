@@ -3,13 +3,15 @@
 
 module Model.AppState
   ( AppState(..)
-  , TransientMsg(..)
   , SlewEvent(..)
   , Name(..)
+  , Command(..)
+  , Category(..)
   , searchEditor
   , jobList
   , allJobs
   , selectedJob
+  , sortKey
   , transient
   , initialState
   , getCurrentSearchTerm
@@ -23,17 +25,15 @@ import Brick.Widgets.List (GenericList, list, listReplace, listSelectedElement)
 import Control.Lens
 import qualified Data.Text as T
 import qualified Data.Vector as Vec
-import Data.Text (Text)
 import Model.Job
 import qualified UI.Transient as TR
 
 ------------------------------------------------------------
 -- Event Messages
 
-data TransientMsg = Cancel | Suspend | Resume | Hold | Release | Top
-  deriving (Show, Eq)
-
-data SlewEvent = SQueueStatus [Job]
+data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving Show
+data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving Show
+data SlewEvent = SQueueStatus [Job] | SControl Command | SortBy Category deriving Show
 
 ------------------------------------------------------------
 -- Widget Names
@@ -49,7 +49,8 @@ data AppState = AppState
   , _jobList      :: GenericList Name Vec.Vector Job
   , _allJobs      :: [Job]
   , _selectedJob  :: Maybe Job
-  , _transient    :: Maybe (TR.TransientState TransientMsg)
+  , _transient    :: Maybe (TR.TransientState SlewEvent)
+  , _sortKey :: Maybe Category
   } deriving (Show)
 
 makeLenses ''AppState
@@ -64,6 +65,7 @@ initialState = AppState
   , _allJobs      = []
   , _selectedJob  = Nothing
   , _transient    = Nothing
+  , _sortKey = Nothing
   }
 
 ------------------------------------------------------------
