@@ -85,9 +85,9 @@ filterJobs searchTerm =
       matches job =
         let fields = [ T.pack (show $ jobId job)
                      , name job
-                     , account job
-                     , jobState job
-                     , partition job ]
+                     , account job]
+                     <> jobState job <>
+                     [partition job ]
         in any (searchLower `T.isInfixOf`) $ map T.toLower fields
   in filter matches
 

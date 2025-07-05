@@ -5,12 +5,7 @@
 module Model.SQueue where
 
 import Data.Aeson
-import Data.Aeson.Types (Parser)
-import Data.Text (Text)
-import GHC.Generics hiding (Meta)
-import Control.Applicative ((<|>))
 import Model.Job hiding (cpus, nodes)
-import Control.Lens
 
 -- | Main response structure
 data SlurmResponse = SlurmResponse
@@ -30,7 +25,7 @@ data Meta = Meta
 instance FromJSON Meta where
   parseJSON = withObject "Meta" $ \o -> Meta
     <$> o .: "plugin"
-    <*> o .: "Slurm"
+    <*> o .: "slurm"
 
 
 -- | Plugin information
@@ -57,11 +52,9 @@ instance FromJSON SlurmInfo where
 
 -- | Slurm version details
 data SlurmVersion = SlurmVersion
-  { major :: Int
-  , micro :: Int
-  , minor :: Int
+  { major :: Text
+  , micro :: Text
+  , minor :: Text
   } deriving (Show, Generic)
 
 instance FromJSON SlurmVersion
-
-
