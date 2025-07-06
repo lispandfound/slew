@@ -56,6 +56,8 @@ data Job = Job
   , memoryPerNode :: Quantity Int
   , name :: Text
   , nodeCount :: Quantity Int
+  , standardOutput :: FilePath
+  , standardError :: FilePath
   , nodes :: Text
   , partition :: Text
   , startTime :: Quantity SystemTime
