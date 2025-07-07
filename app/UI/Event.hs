@@ -1,48 +1,54 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module UI.Event
-  ( handleEvent
-  , handleSearchEvent
-  , shellWithJob
-  ) where
+module UI.Event (
+    handleEvent,
+    handleSearchEvent,
+    shellWithJob,
+) where
 
 import Brick
 import Brick.Widgets.Edit
 import Brick.Widgets.List
-import qualified Graphics.Vty as V
 import Control.Lens hiding (zoom)
 import qualified Data.Vector as Vec
-import System.Process (spawnCommand, waitForProcess)
 import Fmt
+import qualified Graphics.Vty as V
+import System.Process (spawnCommand, waitForProcess)
 
-import qualified UI.Transient as TR
 import Model.AppState
 import Model.Job
+import qualified UI.Transient as TR
 
 scontrolTransient :: TR.TransientState SlewEvent
-scontrolTransient = TR.menu "Job Control" $ mconcat
-  [ TR.submenu 's' "State Control" $ mconcat
-      [ TR.item 'h' "Hold" (SControl Hold)
-      , TR.item 'r' "Resume" (SControl Resume)
-      , TR.item 's' "Suspend" (SControl Suspend)
-      , TR.item 'c' "Cancel" (SControl Cancel)
-      ]
-  , TR.submenu 'p' "Priority" $ mconcat
-      [ TR.item 't' "Top" (SControl Top)
-      ]
-  ]
+scontrolTransient =
+    TR.menu "Job Control" $
+        mconcat
+            [ TR.submenu 's' "State Control" $
+                mconcat
+                    [ TR.item 'h' "Hold" (SControl Hold)
+                    , TR.item 'r' "Resume" (SControl Resume)
+                    , TR.item 's' "Suspend" (SControl Suspend)
+                    , TR.item 'c' "Cancel" (SControl Cancel)
+                    ]
+            , TR.submenu 'p' "Priority" $
+                mconcat
+                    [ TR.item 't' "Top" (SControl Top)
+                    ]
+            ]
 
 sortTransient :: TR.TransientState SlewEvent
-sortTransient = TR.menu "Job Sorting" $ mconcat [
-  TR.item 'a' "Account" (SortBy Account)
-  , TR.item 'c' "CPUs" (SortBy CPUs)
-  , TR.item 's' "Start Time"  (SortBy StartTime)
-  , TR.item 'e' "End Time" (SortBy EndTime)
-  , TR.item 'j' "Job Name" (SortBy JobName)
-  , TR.item 'u' "User Name" (SortBy UserName)
-  , TR.item 'm' "Memory (per node)" (SortBy Memory)
-                                                ]
+sortTransient =
+    TR.menu "Job Sorting" $
+        mconcat
+            [ TR.item 'a' "Account" (SortBy Account)
+            , TR.item 'c' "CPUs" (SortBy CPUs)
+            , TR.item 's' "Start Time" (SortBy StartTime)
+            , TR.item 'e' "End Time" (SortBy EndTime)
+            , TR.item 'j' "Job Name" (SortBy JobName)
+            , TR.item 'u' "User Name" (SortBy UserName)
+            , TR.item 'm' "Memory (per node)" (SortBy Memory)
+            ]
 
 sortListByCat :: Category -> [Job] -> [Job]
 sortListByCat Account = sortOn account
@@ -53,57 +59,50 @@ sortListByCat JobName = sortOn name
 sortListByCat UserName = sortOn userName
 sortListByCat Memory = sortOn memoryPerNode
 
-
 updateList :: [Job] -> EventM Name AppState ()
 updateList jobs = do
-  currentSortKey <- use sortKey
-  let sortedJobs = maybe jobs (`sortListByCat` jobs) currentSortKey
-  jobList %= listReplace (Vec.fromList sortedJobs) (Just 0)
-  allJobs .= sortedJobs
-  searchJobList
+    currentSortKey <- use sortKey
+    let sortedJobs = maybe jobs (`sortListByCat` jobs) currentSortKey
+    jobList %= listReplace (Vec.fromList sortedJobs) (Just 0)
+    allJobs .= sortedJobs
+    searchJobList
 
 -- | Main event handler
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
-  msg <- getFirst <$> zoom (transient . _Just) (TR.handleTransientEvent e)
-  case msg of
-    Just TR.Close -> transient .= Nothing
-    _             -> halt
-
+    msg <- getFirst <$> zoom (transient . _Just) (TR.handleTransientEvent e)
+    case msg of
+        Just TR.Close -> transient .= Nothing
+        _ -> halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
-
-handleEvent (VtyEvent e@(V.EvKey V.KUp []))   = zoom jobList (handleListEvent e) >> selectJob
+handleEvent (VtyEvent e@(V.EvKey V.KUp [])) = zoom jobList (handleListEvent e) >> selectJob
 handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e) >> selectJob
-
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
-  transient .= Just scontrolTransient -- could parameterise this
-
+    transient .= Just scontrolTransient -- could parameterise this
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
-  transient .= Just sortTransient -- could parameterise this
-
+    transient .= Just sortTransient -- could parameterise this
 handleEvent (VtyEvent e) = do
-  msg <- getFirst <$> zoom (transient . _Just) (TR.handleTransientEvent e)
-  case msg of
-    Just TR.Close      -> transient .= Nothing
-    Just (TR.Msg msg') -> transient .= Nothing >> handleEvent (AppEvent msg')
-    Just TR.Next          -> pure ()
-    _                  -> handleSearchEvent e >> selectJob
-
+    msg <- getFirst <$> zoom (transient . _Just) (TR.handleTransientEvent e)
+    case msg of
+        Just TR.Close -> transient .= Nothing
+        Just (TR.Msg msg') -> transient .= Nothing >> handleEvent (AppEvent msg')
+        Just TR.Next -> pure ()
+        _ -> handleSearchEvent e >> selectJob
 handleEvent (AppEvent (SQueueStatus jobs)) = updateList jobs
 handleEvent (AppEvent (SortBy category)) = do
-  sortKey .= Just category
-  jobs <- use allJobs
-  updateList jobs
+    sortKey .= Just category
+    jobs <- use allJobs
+    updateList jobs
 handleEvent (AppEvent (SControl Cancel)) = shellWithJob cancelCmd
-  where cancelCmd job = "scancel " +| jobId job |+ ""
+  where
+    cancelCmd job = "scancel " +| jobId job |+ ""
 handleEvent (AppEvent (SControl Hold)) = shellWithJob (scontrol "hold")
 handleEvent (AppEvent (SControl Resume)) = shellWithJob (scontrol "resume")
 handleEvent (AppEvent (SControl Suspend)) = shellWithJob (scontrol "suspend")
 handleEvent (AppEvent (SControl Release)) = shellWithJob (scontrol "release")
 handleEvent (AppEvent (SControl Top)) = shellWithJob topCmd
-  where topCmd job = "scontrol update job=" +| jobId job |+ " priority=Top"
-
-
+  where
+    topCmd job = "scontrol update job=" +| jobId job |+ " priority=Top"
 handleEvent _ = pure ()
 
 ------------------------------------------------------------
@@ -112,37 +111,34 @@ handleEvent _ = pure ()
 -- | Apply search to job list
 searchJobList :: EventM Name AppState ()
 searchJobList = do
-  st <- get
-  put $ updateJobList (getCurrentSearchTerm st) st
+    st <- get
+    put $ updateJobList (getCurrentSearchTerm st) st
 
 -- | Handle search editor input
 handleSearchEvent :: V.Event -> EventM Name AppState ()
 handleSearchEvent e = do
-  zoom searchEditor $ handleEditorEvent (VtyEvent e)
-  searchJobList
+    zoom searchEditor $ handleEditorEvent (VtyEvent e)
+    searchJobList
 
 -- | Update selectedJob lens from list
-
 selectJob :: EventM Name AppState ()
 selectJob = do
     selectedElement <- preuse (jobList . listSelectedElementL)
     selectedJob .= selectedElement
 
-
-exec :: MonadIO m => String -> m ()
+exec :: (MonadIO m) => String -> m ()
 exec cmd = liftIO $ do
-  cmdHandle <- spawnCommand cmd
-  void $ waitForProcess cmdHandle
+    cmdHandle <- spawnCommand cmd
+    void $ waitForProcess cmdHandle
 
 shellWithJob :: (Job -> String) -> EventM Name AppState ()
 shellWithJob f = do
-  jobMay <- gets getSelectedJob
-  case jobMay of
-    Just job ->
-      do
-        (exec . f) job
-    Nothing -> pure ()
-
+    jobMay <- gets getSelectedJob
+    case jobMay of
+        Just job ->
+            do
+                (exec . f) job
+        Nothing -> pure ()
 
 scontrol :: String -> Job -> String
 scontrol verb job = "scontrol " +| verb |+ " " +| jobId job |+ ""

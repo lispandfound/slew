@@ -1,72 +1,72 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Model.Job where
 
 import Data.Aeson
 import Data.Aeson.Casing (snakeCase)
-import Data.Time.Clock.System (SystemTime)
 import Data.Time.Clock (DiffTime)
+import Data.Time.Clock.System (SystemTime)
 
 data Quantity a = Unset | Infinite | Set a deriving (Show, Eq)
 
-instance Ord a => Ord (Quantity a) where
-  compare Unset Unset = EQ
-  compare Infinite Infinite = EQ
-  compare Unset _ = LT
-  compare _ Unset = GT
-  compare Infinite _ = GT
-  compare _ Infinite = LT
-  compare (Set x) (Set y) = compare x y
+instance (Ord a) => Ord (Quantity a) where
+    compare Unset Unset = EQ
+    compare Infinite Infinite = EQ
+    compare Unset _ = LT
+    compare _ Unset = GT
+    compare Infinite _ = GT
+    compare _ Infinite = LT
+    compare (Set x) (Set y) = compare x y
 
-
-showWith :: IsString b => (a -> b) -> Quantity a -> b
+showWith :: (IsString b) => (a -> b) -> Quantity a -> b
 showWith _ Unset = "not set"
 showWith _ Infinite = "infinite"
 showWith f (Set x) = f x
 
 snakeCaseOptions :: Options
-snakeCaseOptions = defaultOptions { fieldLabelModifier = snakeCase }
+snakeCaseOptions = defaultOptions{fieldLabelModifier = snakeCase}
 
-instance FromJSON a => FromJSON (Quantity a) where
-  parseJSON = withObject "Quantity" $ \obj -> do
-    isSet <- obj .: "set"
-    infinite <- obj .: "infinite"
-    number <- obj .: "number"
-    case (isSet, infinite, number) of
-      (False, _, _) -> pure Unset
-      (True, True, _) -> pure Infinite
-      (True, False, x) -> pure (Set x)
+instance (FromJSON a) => FromJSON (Quantity a) where
+    parseJSON = withObject "Quantity" $ \obj -> do
+        isSet <- obj .: "set"
+        infinite <- obj .: "infinite"
+        number <- obj .: "number"
+        case (isSet, infinite, number) of
+            (False, _, _) -> pure Unset
+            (True, True, _) -> pure Infinite
+            (True, False, x) -> pure (Set x)
 
-data ExitCode = ExitCode {
-  status :: [Text]
-  , returnCode :: Quantity Int
-                         } deriving (Show, Generic)
+data ExitCode = ExitCode
+    { status :: [Text]
+    , returnCode :: Quantity Int
+    }
+    deriving (Show, Generic)
 
 instance FromJSON ExitCode where
-  parseJSON = genericParseJSON snakeCaseOptions
+    parseJSON = genericParseJSON snakeCaseOptions
 
 data Job = Job
-  { account :: Text
-  , cpus :: Quantity Int
-  , endTime :: Quantity SystemTime
-  , exitCode :: ExitCode
-  , jobId :: Int
-  , jobState :: [Text]
-  , memoryPerNode :: Quantity Int
-  , name :: Text
-  , nodeCount :: Quantity Int
-  , standardOutput :: FilePath
-  , standardError :: FilePath
-  , nodes :: Text
-  , partition :: Text
-  , startTime :: Quantity SystemTime
-  , stateReason :: Text
-  , timeLimit :: Quantity DiffTime
-  , userName :: Text
-  } deriving (Show, Generic)
-
-
+    { account :: Text
+    , cpus :: Quantity Int
+    , endTime :: Quantity SystemTime
+    , exitCode :: ExitCode
+    , jobId :: Int
+    , jobState :: [Text]
+    , memoryPerNode :: Quantity Int
+    , name :: Text
+    , nodeCount :: Quantity Int
+    , standardOutput :: FilePath
+    , standardError :: FilePath
+    , nodes :: Text
+    , partition :: Text
+    , startTime :: Quantity SystemTime
+    , stateReason :: Text
+    , timeLimit :: Quantity DiffTime
+    , userName :: Text
+    }
+    deriving (Show, Generic)
 
 instance FromJSON Job where
     parseJSON = genericParseJSON snakeCaseOptions
