@@ -76,12 +76,12 @@ handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
         Just TR.Close -> transient .= Nothing
         _ -> halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
-handleEvent (VtyEvent e@(V.EvKey V.KUp [])) = zoom jobList (handleListEvent e) >> selectJob
-handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e) >> selectJob
+handleEvent (VtyEvent e@(V.EvKey V.KUp [])) = zoom jobList (handleListEvent e)
+handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e)
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
     transient .= Just scontrolTransient -- could parameterise this
 handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = do
-    curFile <- use (selectedJobL . to standardOutput)
+    curFile <- use (selectedJob . to standardOutput)
     pollTitle .= Just (fmt $ "Stdout: " +| toText curFile |+ "")
     zoom pollState (tailFile curFile)
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
@@ -92,7 +92,7 @@ handleEvent (VtyEvent e) = do
         Just TR.Close -> transient .= Nothing
         Just (TR.Msg msg') -> transient .= Nothing >> handleEvent (AppEvent msg')
         Just TR.Next -> pure ()
-        _ -> handleSearchEvent e >> selectJob
+        _ -> handleSearchEvent e
 handleEvent (AppEvent (SQueueStatus jobs)) = updateList jobs
 handleEvent (AppEvent (SortBy category)) = do
     sortKey .= Just category
@@ -118,19 +118,13 @@ handleEvent _ = pure ()
 searchJobList :: EventM Name AppState ()
 searchJobList = do
     st <- get
-    put $ updateJobList (getCurrentSearchTerm st) st
+    put $ updateJobList (st ^. currentSearchTerm) st
 
 -- | Handle search editor input
 handleSearchEvent :: V.Event -> EventM Name AppState ()
 handleSearchEvent e = do
     zoom searchEditor $ handleEditorEvent (VtyEvent e)
     searchJobList
-
--- | Update selectedJob lens from list
-selectJob :: EventM Name AppState ()
-selectJob = do
-    selectedElement <- preuse (jobList . listSelectedElementL)
-    selectedJob .= selectedElement
 
 exec :: (MonadIO m) => String -> m ()
 exec cmd = liftIO $ do
@@ -139,7 +133,7 @@ exec cmd = liftIO $ do
 
 shellWithJob :: (Job -> String) -> EventM Name AppState ()
 shellWithJob f = do
-    jobMay <- preuse selectedJobL
+    jobMay <- preuse selectedJob
     case jobMay of
         Just job ->
             do

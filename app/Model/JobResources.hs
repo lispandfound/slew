@@ -4,11 +4,7 @@
 
 module Model.JobResources where
 
-import Control.Applicative ((<|>))
 import Data.Aeson
-import Data.Aeson.Types (Parser)
-import Data.Text (Text)
-import GHC.Generics
 import Model.AllocatedNode (AllocatedNode)
 
 -- | Job resources allocation information
