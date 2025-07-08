@@ -18,6 +18,7 @@ import System.Process (spawnCommand, waitForProcess)
 
 import Model.AppState
 import Model.Job
+import UI.Poller (handlePollerEvent, tailFile)
 import qualified UI.Transient as TR
 
 scontrolTransient :: TR.TransientState SlewEvent
@@ -79,6 +80,10 @@ handleEvent (VtyEvent e@(V.EvKey V.KUp [])) = zoom jobList (handleListEvent e) >
 handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e) >> selectJob
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
     transient .= Just scontrolTransient -- could parameterise this
+handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = do
+    curFile <- use (selectedJobL . to standardOutput)
+    pollTitle .= Just (fmt $ "Stdout: " +| toText curFile |+ "")
+    zoom pollState (tailFile curFile)
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
     transient .= Just sortTransient -- could parameterise this
 handleEvent (VtyEvent e) = do
@@ -103,6 +108,7 @@ handleEvent (AppEvent (SControl Release)) = shellWithJob (scontrol "release")
 handleEvent (AppEvent (SControl Top)) = shellWithJob topCmd
   where
     topCmd job = "scontrol update job=" +| jobId job |+ " priority=Top"
+handleEvent (AppEvent (PollEvent ev)) = zoom pollState (handlePollerEvent ev)
 handleEvent _ = pure ()
 
 ------------------------------------------------------------
@@ -133,7 +139,7 @@ exec cmd = liftIO $ do
 
 shellWithJob :: (Job -> String) -> EventM Name AppState ()
 shellWithJob f = do
-    jobMay <- gets getSelectedJob
+    jobMay <- preuse selectedJobL
     case jobMay of
         Just job ->
             do

@@ -3,7 +3,6 @@ module Tail.Poller (createPoller, Command (..)) where
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (race)
 import Control.Concurrent.STM.TChan
-import Control.Monad (forever)
 import Tail.TailFile (tailFile)
 
 data Command = Tail FilePath | Pause

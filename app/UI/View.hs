@@ -41,6 +41,8 @@ import Model.AppState (
     filterJobs,
     getCurrentSearchTerm,
     jobList,
+    pollState,
+    pollTitle,
     searchEditor,
     selectedJob,
     transient,
@@ -65,6 +67,7 @@ import Model.Job (
     ),
     showWith,
  )
+import UI.Poller (buffer, renderPoller)
 import UI.Transient (drawTransientView)
 
 -- | Top-level renderer for the entire application.
@@ -73,9 +76,13 @@ drawApp st =
     [ vBox
         [ (drawSearchBar st <=> hBorder)
         , (drawJobList st <+> maybe emptyWidget drawJobPanel (st ^. selectedJob))
+        , drawStdOutTailer st
         , maybe emptyWidget drawTransientView (st ^. transient)
         ]
     ]
+
+drawStdOutTailer :: AppState -> Widget Name
+drawStdOutTailer st = if (null $ st ^. pollState ^. buffer) then emptyWidget else borderWithLabel (txt . fromMaybe "Output" $ st ^. pollTitle) . padRight Max $ renderPoller (st ^. pollState)
 
 -- | Render the search bar.
 drawSearchBar :: AppState -> Widget Name
@@ -108,9 +115,9 @@ drawJobItem selected job =
 
 -- | Format seconds to HH:MM:SS string
 formatTime :: DiffTime -> Text
-formatTime pico =
+formatTime diff =
     let
-        seconds = round ((realToFrac pico :: Double) / 1e12) :: Int
+        seconds = round diff :: Int
         hours = seconds `div` 3600
         minutes = (seconds `mod` 3600) `div` 60
         secs = seconds `mod` 60

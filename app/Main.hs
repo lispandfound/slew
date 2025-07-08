@@ -4,14 +4,15 @@ module Main where
 
 import Brick
 import qualified Brick.BChan as BC
-import Control.Concurrent (killThread)
+import Control.Concurrent.Async (withAsync)
+import Control.Concurrent.STM.TChan (newTChanIO)
 import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
-
 import Model.AppState
 import SQueue.Poller
 import UI.Event (handleEvent)
+import UI.Poller (startPoller)
 import UI.View (drawApp)
 
 ------------------------------------------------------------
@@ -50,9 +51,11 @@ appAttrs =
 
 main :: IO ()
 main = do
-    chan <- BC.newBChan 10
-    squeueId <- squeueThread SQueueStatus chan
-    let buildVty = mkVty defaultConfig
-    initialVty <- buildVty
-    void $ customMain initialVty buildVty (Just chan) app initialState
-    killThread squeueId
+    eventChannel <- BC.newBChan 10
+    commandChannel <- newTChanIO
+    withAsync (squeueThread SQueueStatus eventChannel) $ \_ ->
+        withAsync (startPoller commandChannel (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
+            let buildVty = mkVty defaultConfig
+                is = initialState commandChannel
+            initialVty <- buildVty
+            void $ customMain initialVty buildVty (Just eventChannel) app is
