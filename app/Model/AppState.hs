@@ -29,7 +29,7 @@ import Control.Lens.Traversal (Traversal')
 import qualified Data.Text as T
 import Data.Text.Zipper (getText, textZipper)
 import qualified Data.Vector as Vec
-import Model.Job (Job (account, jobId, jobState, name, partition))
+import Model.Job (Job, account, jobId, jobState, name, partition)
 import qualified Tail.Poller as P
 import UI.Poller (PollerState, poller)
 import qualified UI.Poller as UP
@@ -99,12 +99,12 @@ filterJobs searchTerm =
     let searchLower = T.toLower searchTerm
         matches job =
             let fields =
-                    [ T.pack (show $ jobId job)
-                    , name job
-                    , account job
+                    [ T.pack (show $ job ^. jobId)
+                    , job ^. name
+                    , job ^. account
                     ]
-                        <> jobState job
-                        <> [partition job]
+                        <> job ^. jobState
+                        <> [job ^. partition]
              in any (searchLower `T.isInfixOf`) $ map T.toLower fields
      in filter matches
 

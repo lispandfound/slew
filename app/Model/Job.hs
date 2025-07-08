@@ -1,9 +1,36 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
-module Model.Job where
+module Model.Job (
+    ExitCode,
+    Job,
+    account,
+    cpus,
+    endTime,
+    exitCode,
+    jobId,
+    jobState,
+    makeLenses,
+    memoryPerNode,
+    nodes,
+    name,
+    nodeCount,
+    partition,
+    returnCode,
+    standardError,
+    standardOutput,
+    startTime,
+    stateReason,
+    status,
+    timeLimit,
+    userName,
+    showWith,
+    formatTime,
+) where
 
+import Control.Lens (makeLenses)
 import Data.Aeson (
     FromJSON (parseJSON),
     Options (fieldLabelModifier),
@@ -47,34 +74,38 @@ instance (FromJSON a) => FromJSON (Quantity a) where
             (True, False, x) -> pure (Set x)
 
 data ExitCode = ExitCode
-    { status :: [Text]
-    , returnCode :: Quantity Int
+    { _status :: [Text]
+    , _returnCode :: Quantity Int
     }
     deriving (Show, Generic)
+
+makeLenses ''ExitCode
 
 instance FromJSON ExitCode where
     parseJSON = genericParseJSON snakeCaseOptions
 
 data Job = Job
-    { account :: Text
-    , cpus :: Quantity Int
-    , endTime :: Quantity SystemTime
-    , exitCode :: ExitCode
-    , jobId :: Int
-    , jobState :: [Text]
-    , memoryPerNode :: Quantity Int
-    , name :: Text
-    , nodeCount :: Quantity Int
-    , standardOutput :: FilePath
-    , standardError :: FilePath
-    , nodes :: Text
-    , partition :: Text
-    , startTime :: Quantity SystemTime
-    , stateReason :: Text
-    , timeLimit :: Quantity DiffTime
-    , userName :: Text
+    { _account :: Text
+    , _cpus :: Quantity Int
+    , _endTime :: Quantity SystemTime
+    , _exitCode :: ExitCode
+    , _jobId :: Int
+    , _jobState :: [Text]
+    , _memoryPerNode :: Quantity Int
+    , _name :: Text
+    , _nodeCount :: Quantity Int
+    , _standardOutput :: FilePath
+    , _standardError :: FilePath
+    , _nodes :: Text
+    , _partition :: Text
+    , _startTime :: Quantity SystemTime
+    , _stateReason :: Text
+    , _timeLimit :: Quantity DiffTime
+    , _userName :: Text
     }
     deriving (Show, Generic)
+
+makeLenses ''Job
 
 instance FromJSON Job where
     parseJSON = genericParseJSON snakeCaseOptions

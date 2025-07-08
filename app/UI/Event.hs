@@ -52,13 +52,13 @@ sortTransient =
             ]
 
 sortListByCat :: Category -> [Job] -> [Job]
-sortListByCat Account = sortOn account
-sortListByCat CPUs = sortOn cpus
-sortListByCat StartTime = sortOn startTime
-sortListByCat EndTime = sortOn endTime
-sortListByCat JobName = sortOn name
-sortListByCat UserName = sortOn userName
-sortListByCat Memory = sortOn memoryPerNode
+sortListByCat Account = sortOn (view account)
+sortListByCat CPUs = sortOn (view cpus)
+sortListByCat StartTime = sortOn (view startTime)
+sortListByCat EndTime = sortOn (view endTime)
+sortListByCat JobName = sortOn (view name)
+sortListByCat UserName = sortOn (view userName)
+sortListByCat Memory = sortOn (view memoryPerNode)
 
 updateList :: [Job] -> EventM Name AppState ()
 updateList jobs = do
@@ -81,7 +81,7 @@ handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e)
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
     transient .= Just scontrolTransient -- could parameterise this
 handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = do
-    curFile <- use (selectedJob . to standardOutput)
+    curFile <- use (selectedJob . standardOutput)
     pollTitle .= Just (fmt $ "Stdout: " +| toText curFile |+ "")
     zoom pollState (tailFile curFile)
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
@@ -100,14 +100,14 @@ handleEvent (AppEvent (SortBy category)) = do
     updateList jobs
 handleEvent (AppEvent (SControl Cancel)) = shellWithJob cancelCmd
   where
-    cancelCmd job = "scancel " +| jobId job |+ ""
+    cancelCmd job = "scancel " +| job ^. jobId |+ ""
 handleEvent (AppEvent (SControl Hold)) = shellWithJob (scontrol "hold")
 handleEvent (AppEvent (SControl Resume)) = shellWithJob (scontrol "resume")
 handleEvent (AppEvent (SControl Suspend)) = shellWithJob (scontrol "suspend")
 handleEvent (AppEvent (SControl Release)) = shellWithJob (scontrol "release")
 handleEvent (AppEvent (SControl Top)) = shellWithJob topCmd
   where
-    topCmd job = "scontrol update job=" +| jobId job |+ " priority=Top"
+    topCmd job = "scontrol update job=" +| job ^. jobId |+ " priority=Top"
 handleEvent (AppEvent (PollEvent ev)) = zoom pollState (handlePollerEvent ev)
 handleEvent _ = pure ()
 
@@ -141,4 +141,4 @@ shellWithJob f = do
         Nothing -> pure ()
 
 scontrol :: String -> Job -> String
-scontrol verb job = "scontrol " +| verb |+ " " +| jobId job |+ ""
+scontrol verb job = "scontrol " +| verb |+ " " +| job ^. jobId |+ ""
