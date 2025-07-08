@@ -1,10 +1,9 @@
 module Tail.Poller (createPoller, Command (..)) where
 
-import Control.Concurrent.STM.TChan
-import Control.Concurrent.Async (race)
-import Tail.TailFile (tailFile)
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever)
+import Control.Concurrent.Async (race)
+import Control.Concurrent.STM.TChan
+import Tail.TailFile (tailFile)
 
 data Command = Tail FilePath | Pause
 
