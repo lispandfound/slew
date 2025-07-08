@@ -19,11 +19,11 @@ import Control.Lens
 import Model.AppState (
     AppState,
     Name,
+    jobQueueState,
     pollState,
-    selectedJob,
     transient,
  )
-import UI.JobList (drawJobList, drawSearchBar)
+import UI.JobList (drawJobList, drawSearchBar, selectedJob)
 import UI.JobPanel (drawJobPanel)
 import UI.Poller (drawPoller)
 import UI.Transient (drawTransientView)
@@ -32,8 +32,8 @@ import UI.Transient (drawTransientView)
 drawApp :: AppState -> [Widget Name]
 drawApp st =
     [ vBox
-        [ (drawSearchBar st <=> hBorder)
-        , (drawJobList st <+> maybe emptyWidget drawJobPanel (st ^? selectedJob))
+        [ (drawSearchBar (st ^. jobQueueState) <=> hBorder)
+        , (drawJobList (st ^. jobQueueState) <+> maybe emptyWidget drawJobPanel (st ^? jobQueueState . selectedJob))
         , drawPoller (st ^. pollState)
         , maybe emptyWidget drawTransientView (st ^. transient)
         ]

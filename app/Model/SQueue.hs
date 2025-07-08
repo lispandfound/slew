@@ -7,6 +7,7 @@ module Model.SQueue where
 
 import Data.Aeson (FromJSON (parseJSON), genericParseJSON)
 import Data.Aeson.Casing (aesonPrefix)
+import Data.Char (toLower)
 import Model.Job (Job)
 
 -- | Main response structure
@@ -34,7 +35,7 @@ data Plugin = Plugin
     deriving (Show, Generic)
 
 instance FromJSON Plugin where
-    parseJSON = genericParseJSON (aesonPrefix id)
+    parseJSON = genericParseJSON (aesonPrefix (map toLower))
 
 -- | Slurm version information
 data SlurmInfo = SlurmInfo

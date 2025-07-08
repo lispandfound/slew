@@ -61,7 +61,7 @@ showWith _ Infinite = "infinite"
 showWith f (Set x) = f x
 
 snakeCaseOptions :: Options
-snakeCaseOptions = defaultOptions{fieldLabelModifier = snakeCase}
+snakeCaseOptions = defaultOptions{fieldLabelModifier = (snakeCase . fromMaybe mempty . viaNonEmpty tail)}
 
 instance (FromJSON a) => FromJSON (Quantity a) where
     parseJSON = withObject "Quantity" $ \obj -> do
