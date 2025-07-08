@@ -4,11 +4,18 @@
 
 module Model.Job where
 
-import Data.Aeson
+import Data.Aeson (
+    FromJSON (parseJSON),
+    Options (fieldLabelModifier),
+    defaultOptions,
+    genericParseJSON,
+    withObject,
+    (.:),
+ )
 import Data.Aeson.Casing (snakeCase)
 import Data.Time.Clock (DiffTime)
 import Data.Time.Clock.System (SystemTime)
-import Fmt
+import Fmt (padLeftF, (+|), (|+))
 
 data Quantity a = Unset | Infinite | Set a deriving (Show, Eq)
 
