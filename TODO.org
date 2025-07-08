@@ -19,7 +19,7 @@ Msg triggered on keypress, update triggers external IO via Cmd (calls scancel)
 Pressing key → emit Msg → handler constructs sbatch string and spawns a Cmd
 *** TODO Export to CSV
 Cmd that writes to file or clipboard, possibly triggered by Msg
-*** TODO Log preview (tail)
+*** DONE Log preview (tail)
 Use Cmd to spawn tail process → output read into Msg → render in scrollable window
 *** TODO Pending reason
 On select or hover, fetch with Cmd, cached in state (Map JobId Reason)
