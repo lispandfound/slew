@@ -5,8 +5,10 @@
 
 module Model.SQueue where
 
-import Data.Aeson
-import Model.Job hiding (cpus, nodes)
+import Data.Aeson (FromJSON (parseJSON), genericParseJSON)
+import Data.Aeson.Casing (aesonPrefix)
+import Data.Char (toLower)
+import Model.Job (Job)
 
 -- | Main response structure
 data SlurmResponse = SlurmResponse
@@ -23,11 +25,7 @@ data Meta = Meta
     }
     deriving (Show, Generic)
 
-instance FromJSON Meta where
-    parseJSON = withObject "Meta" $ \o ->
-        Meta
-            <$> o .: "plugin"
-            <*> o .: "slurm"
+instance FromJSON Meta
 
 -- | Plugin information
 data Plugin = Plugin
@@ -37,10 +35,7 @@ data Plugin = Plugin
     deriving (Show, Generic)
 
 instance FromJSON Plugin where
-    parseJSON = withObject "Plugin" $ \o ->
-        Plugin
-            <$> o .: "type"
-            <*> o .: "name"
+    parseJSON = genericParseJSON (aesonPrefix (map toLower))
 
 -- | Slurm version information
 data SlurmInfo = SlurmInfo
@@ -49,11 +44,7 @@ data SlurmInfo = SlurmInfo
     }
     deriving (Show, Generic)
 
-instance FromJSON SlurmInfo where
-    parseJSON = withObject "SlurmInfo" $ \o ->
-        SlurmInfo
-            <$> o .: "version"
-            <*> o .: "release"
+instance FromJSON SlurmInfo
 
 -- | Slurm version details
 data SlurmVersion = SlurmVersion

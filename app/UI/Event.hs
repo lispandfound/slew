@@ -3,21 +3,20 @@
 
 module UI.Event (
     handleEvent,
-    handleSearchEvent,
     shellWithJob,
 ) where
 
 import Brick
-import Brick.Widgets.Edit
-import Brick.Widgets.List
 import Control.Lens hiding (zoom)
-import qualified Data.Vector as Vec
 import Fmt
 import qualified Graphics.Vty as V
 import System.Process (spawnCommand, waitForProcess)
 
+import Brick.Widgets.List (listElementsL)
+import qualified Data.Vector as Vec
 import Model.AppState
 import Model.Job
+import UI.JobList (Sorter, handleJobQueueEvent, jobListState, selectedJob, sortKey, sorter)
 import UI.Poller (handlePollerEvent, tailFile)
 import qualified UI.Transient as TR
 
@@ -51,22 +50,14 @@ sortTransient =
             , TR.item 'm' "Memory (per node)" (SortBy Memory)
             ]
 
-sortListByCat :: Category -> [Job] -> [Job]
-sortListByCat Account = sortOn account
-sortListByCat CPUs = sortOn cpus
-sortListByCat StartTime = sortOn startTime
-sortListByCat EndTime = sortOn endTime
-sortListByCat JobName = sortOn name
-sortListByCat UserName = sortOn userName
-sortListByCat Memory = sortOn memoryPerNode
-
-updateList :: [Job] -> EventM Name AppState ()
-updateList jobs = do
-    currentSortKey <- use sortKey
-    let sortedJobs = maybe jobs (`sortListByCat` jobs) currentSortKey
-    jobList %= listReplace (Vec.fromList sortedJobs) (Just 0)
-    allJobs .= sortedJobs
-    searchJobList
+sortListByCat :: Category -> Sorter
+sortListByCat Account = sorter (view account)
+sortListByCat CPUs = sorter (view cpus)
+sortListByCat StartTime = sorter (view startTime)
+sortListByCat EndTime = sorter (view endTime)
+sortListByCat JobName = sorter (view name)
+sortListByCat UserName = sorter (view userName)
+sortListByCat Memory = sorter (view memoryPerNode)
 
 -- | Main event handler
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
@@ -76,13 +67,10 @@ handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
         Just TR.Close -> transient .= Nothing
         _ -> halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
-handleEvent (VtyEvent e@(V.EvKey V.KUp [])) = zoom jobList (handleListEvent e) >> selectJob
-handleEvent (VtyEvent e@(V.EvKey V.KDown [])) = zoom jobList (handleListEvent e) >> selectJob
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
     transient .= Just scontrolTransient -- could parameterise this
 handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = do
-    curFile <- use (selectedJobL . to standardOutput)
-    pollTitle .= Just (fmt $ "Stdout: " +| toText curFile |+ "")
+    curFile <- use (jobQueueState . selectedJob . standardOutput)
     zoom pollState (tailFile curFile)
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
     transient .= Just sortTransient -- could parameterise this
@@ -92,45 +80,24 @@ handleEvent (VtyEvent e) = do
         Just TR.Close -> transient .= Nothing
         Just (TR.Msg msg') -> transient .= Nothing >> handleEvent (AppEvent msg')
         Just TR.Next -> pure ()
-        _ -> handleSearchEvent e >> selectJob
-handleEvent (AppEvent (SQueueStatus jobs)) = updateList jobs
-handleEvent (AppEvent (SortBy category)) = do
-    sortKey .= Just category
-    jobs <- use allJobs
-    updateList jobs
+        _ -> zoom jobQueueState (handleJobQueueEvent e)
+handleEvent (AppEvent (SQueueStatus jobs)) = jobQueueState . jobListState . listElementsL .= Vec.fromList jobs
+handleEvent (AppEvent (SortBy category)) = jobQueueState . sortKey .= Just (sortListByCat category)
 handleEvent (AppEvent (SControl Cancel)) = shellWithJob cancelCmd
   where
-    cancelCmd job = "scancel " +| jobId job |+ ""
+    cancelCmd job = "scancel " +| job ^. jobId |+ ""
 handleEvent (AppEvent (SControl Hold)) = shellWithJob (scontrol "hold")
 handleEvent (AppEvent (SControl Resume)) = shellWithJob (scontrol "resume")
 handleEvent (AppEvent (SControl Suspend)) = shellWithJob (scontrol "suspend")
 handleEvent (AppEvent (SControl Release)) = shellWithJob (scontrol "release")
 handleEvent (AppEvent (SControl Top)) = shellWithJob topCmd
   where
-    topCmd job = "scontrol update job=" +| jobId job |+ " priority=Top"
+    topCmd job = "scontrol update job=" +| job ^. jobId |+ " priority=Top"
 handleEvent (AppEvent (PollEvent ev)) = zoom pollState (handlePollerEvent ev)
 handleEvent _ = pure ()
 
 ------------------------------------------------------------
 -- Helpers
-
--- | Apply search to job list
-searchJobList :: EventM Name AppState ()
-searchJobList = do
-    st <- get
-    put $ updateJobList (getCurrentSearchTerm st) st
-
--- | Handle search editor input
-handleSearchEvent :: V.Event -> EventM Name AppState ()
-handleSearchEvent e = do
-    zoom searchEditor $ handleEditorEvent (VtyEvent e)
-    searchJobList
-
--- | Update selectedJob lens from list
-selectJob :: EventM Name AppState ()
-selectJob = do
-    selectedElement <- preuse (jobList . listSelectedElementL)
-    selectedJob .= selectedElement
 
 exec :: (MonadIO m) => String -> m ()
 exec cmd = liftIO $ do
@@ -139,7 +106,7 @@ exec cmd = liftIO $ do
 
 shellWithJob :: (Job -> String) -> EventM Name AppState ()
 shellWithJob f = do
-    jobMay <- preuse selectedJobL
+    jobMay <- preuse (jobQueueState . selectedJob)
     case jobMay of
         Just job ->
             do
@@ -147,4 +114,4 @@ shellWithJob f = do
         Nothing -> pure ()
 
 scontrol :: String -> Job -> String
-scontrol verb job = "scontrol " +| verb |+ " " +| jobId job |+ ""
+scontrol verb job = "scontrol " +| verb |+ " " +| job ^. jobId |+ ""

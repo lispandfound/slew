@@ -1,3 +1,5 @@
+{-# LANGUAGE NumericUnderscores #-}
+
 module SQueue.Poller (squeueThread) where
 
 import Brick.BChan as BC (BChan, writeBChan)
@@ -12,10 +14,10 @@ pollJobs = do
     squeueFile <- readCreateProcess (shell "squeue --json") ""
     return . second jobs . eitherDecode . encodeUtf8 $ squeueFile
 
-squeueThread :: ([Job] -> a) -> BC.BChan a -> IO void
-squeueThread f chan = forever $ do
+squeueThread :: Int -> ([Job] -> a) -> BC.BChan a -> IO void
+squeueThread pollingInterval f chan = forever $ do
     _jobs <- pollJobs
     case _jobs of
         Right sqStatus -> BC.writeBChan chan . f $ sqStatus
         Left err -> putStrLn err >> pure ()
-    threadDelay 2000000
+    threadDelay (pollingInterval * 1_000_000)

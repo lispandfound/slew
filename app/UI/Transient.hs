@@ -27,11 +27,32 @@ module UI.Transient (
     handleTransientEvent,
 ) where
 
-import Brick hiding (Up, style)
+import Brick (
+    AttrName,
+    EventM,
+    Widget,
+    hBox,
+    padLeftRight,
+    str,
+    txt,
+    vBox,
+    withAttr,
+    (<+>),
+ )
 import Brick.Widgets.Border (hBorderWithLabel)
-import Control.Lens hiding (children)
-import Data.Tree
-import Data.Tree.Zipper
+import Control.Lens (makeLenses, view, (^.))
+import Data.Tree (Forest, Tree (Node, rootLabel, subForest))
+import Data.Tree.Zipper (
+    Full,
+    TreePos,
+    firstChild,
+    fromTree,
+    isRoot,
+    label,
+    next,
+    parent,
+    tree,
+ )
 import qualified Graphics.Vty as V
 
 data TransientPrefix m = TransientPrefix
@@ -44,19 +65,19 @@ data TransientPrefix m = TransientPrefix
 
 -- Builder for convenient construction
 
-newtype TransientBuilder m = TransientBuilder {unBuilder :: Forest (TransientPrefix m)} deriving (Monoid, Semigroup)
+newtype TransientBuilder m = TransientBuilder {_unBuilder :: Forest (TransientPrefix m)} deriving (Monoid, Semigroup)
 
 makeLenses ''TransientPrefix
 type TransientState m = TreePos Full (TransientPrefix m)
 
 -- | Create a leaf node (action item)
 leaf :: Char -> AttrName -> Text -> m -> TransientBuilder m
-leaf c attr txt cmd = TransientBuilder [Node (TransientPrefix c attr txt (Just cmd)) []]
+leaf c attr txt' cmd = TransientBuilder [Node (TransientPrefix c attr txt' (Just cmd)) []]
 
 -- | Create a node with children (submenu)
 node :: Char -> AttrName -> Text -> TransientBuilder m -> TransientBuilder m
-node c attr txt (TransientBuilder children) =
-    TransientBuilder [Node (TransientPrefix c attr txt Nothing) children]
+node c attr txt' (TransientBuilder children) =
+    TransientBuilder [Node (TransientPrefix c attr txt' Nothing) children]
 
 -- | Run the builder to create a transient state
 menu :: Text -> TransientBuilder m -> TransientState m
@@ -67,16 +88,16 @@ menu rootName (TransientBuilder children) =
 
 -- | Create a simple action item
 item :: Char -> Text -> m -> TransientBuilder m
-item c txt cmd = leaf c mempty txt cmd
+item c txt' cmd = leaf c mempty txt' cmd
 
 -- | Create a submenu
 submenu :: Char -> Text -> TransientBuilder m -> TransientBuilder m
-submenu c txt = node c mempty txt
+submenu c txt' = node c mempty txt'
 
 drawTransientView :: TransientState m -> Widget n
-drawTransientView menu = go (tree menu)
+drawTransientView menu' = go (tree menu')
   where
-    childLabel menu = withAttr (menu ^. style) (str [menu ^. char, ':']) <+> padLeftRight 1 (txt (menu ^. name))
+    childLabel menu'' = withAttr (menu'' ^. style) (str [menu'' ^. char, ':']) <+> padLeftRight 1 (txt (menu'' ^. name))
     go current =
         vBox
             [ hBorderWithLabel (txt $ (rootLabel current) ^. name)
@@ -100,8 +121,8 @@ handleTransientEvent (V.EvKey V.KEsc []) = gets shouldClose <* modify goUp
     goUp = fromMaybe <*> parent
 handleTransientEvent (V.EvKey (V.KChar 'g') [V.MCtrl]) = pure (pure Close)
 handleTransientEvent (V.EvKey (V.KChar c) []) = do
-    next <- gets (findChild ((== c) . view char))
-    case next of
+    nextMenu <- gets (findChild ((== c) . view char))
+    case nextMenu of
         Just child -> put child >> gets (First . (<|> pure Next) . fmap Msg . view command . label)
         Nothing -> pure mempty
 handleTransientEvent _ = pure mempty
