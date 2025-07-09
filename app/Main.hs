@@ -5,7 +5,7 @@ module Main where
 import Brick
 import qualified Brick.BChan as BC
 import Control.Concurrent.Async (withAsync)
-import Control.Concurrent.STM.TChan (newTChanIO)
+import Control.Lens ((^.))
 import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
@@ -13,7 +13,8 @@ import Model.AppState
 import Options.Applicative
 import SQueue.Poller
 import UI.Event (handleEvent)
-import UI.Poller (startPoller)
+import UI.Poller (commandChannel, startPoller)
+import UI.SControl (SControlLogEntry (..), chan, startSControlListener)
 import UI.View (drawApp)
 
 ------------------------------------------------------------
@@ -43,8 +44,11 @@ appAttrs =
         , (attrName "jobState.COMPLETED", fg V.blue)
         , (attrName "jobState.FAILED", fg V.red)
         , (attrName "jobState.CANCELLED", V.withStyle V.defAttr V.reverseVideo)
+        , (attrName "exitFailure", fg V.red)
+        , (attrName "exitSuccess", fg V.green)
         , (attrName "jobLabel", fg V.cyan)
         , (attrName "jobValue", fg V.white)
+        , (attrName "jobId", fg V.blue)
         ]
 
 ------------------------------------------------------------
@@ -61,12 +65,13 @@ cli = info (options <**> helper) (fullDesc <> header "slew - Slurm for the rest 
 
 main :: IO ()
 main = do
+    is <- initialState
     eventChannel <- BC.newBChan 10
-    commandChannel <- newTChanIO
     opts <- execParser cli
     withAsync (squeueThread (pollInterval opts) SQueueStatus eventChannel) $ \_ ->
-        withAsync (startPoller commandChannel (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
-            let buildVty = mkVty defaultConfig
-                is = initialState commandChannel
-            initialVty <- buildVty
-            void $ customMain initialVty buildVty (Just eventChannel) app is
+        withAsync (startPoller (is ^. pollState ^. commandChannel) (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
+            withAsync (startSControlListener (is ^. scontrolLogState ^. chan) (\cmd output -> BC.writeBChan eventChannel (SControlReceive (SControlLogEntry cmd output)))) $ \_ -> do
+                let buildVty = mkVty defaultConfig
+
+                initialVty <- buildVty
+                void $ customMain initialVty buildVty (Just eventChannel) app is

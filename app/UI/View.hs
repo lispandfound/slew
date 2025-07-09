@@ -21,20 +21,24 @@ import Model.AppState (
     Name,
     jobQueueState,
     pollState,
+    scontrolLogState,
+    showLog,
     transient,
  )
 import UI.JobList (drawJobList, drawSearchBar, selectedJob)
 import UI.JobPanel (drawJobPanel)
 import UI.Poller (drawPoller)
+import UI.SControl (drawSControlLog)
 import UI.Transient (drawTransientView)
 
 -- | Top-level renderer for the entire application.
 drawApp :: AppState -> [Widget Name]
 drawApp st =
-    [ vBox
-        [ (drawSearchBar (st ^. jobQueueState) <=> hBorder)
-        , (drawJobList (st ^. jobQueueState) <+> maybe emptyWidget drawJobPanel (st ^? jobQueueState . selectedJob))
-        , drawPoller (st ^. pollState)
-        , maybe emptyWidget drawTransientView (st ^. transient)
-        ]
-    ]
+    (if st ^. showLog then [drawSControlLog (st ^. scontrolLogState)] else [])
+        <> [ vBox
+                [ (drawSearchBar (st ^. jobQueueState) <=> hBorder)
+                , (drawJobList (st ^. jobQueueState) <+> maybe emptyWidget drawJobPanel (st ^? jobQueueState . selectedJob))
+                , drawPoller (st ^. pollState)
+                , maybe emptyWidget drawTransientView (st ^. transient)
+                ]
+           ]

@@ -11,15 +11,18 @@ module Model.AppState (
     transient,
     pollState,
     initialState,
+    scontrolLogState,
+    showLog,
 ) where
 
-import Control.Concurrent.STM.TChan (TChan)
+import Brick.BChan
+import Control.Concurrent.STM.TChan (newTChanIO)
 import Control.Lens (makeLenses)
 import Model.Job (Job)
-import qualified Tail.Poller as P
 import UI.JobList (JobQueueState, jobList)
 import UI.Poller (PollerState, poller)
 import qualified UI.Poller as UP
+import UI.SControl
 import qualified UI.Transient as TR
 
 ------------------------------------------------------------
@@ -27,9 +30,9 @@ import qualified UI.Transient as TR
 
 data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
 data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
-data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SControl Command | SortBy Category deriving (Show)
+data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SControlSend Command | SControlReceive SControlLogEntry | SortBy Category deriving (Show)
 
-data Name = SearchEditor | JobListWidget
+data Name = SearchEditor | JobListWidget | SControlLogView
     deriving (Eq, Ord, Show)
 
 ------------------------------------------------------------
@@ -39,6 +42,8 @@ data AppState = AppState
     { _jobQueueState :: JobQueueState Name
     , _transient :: Maybe (TR.TransientState SlewEvent)
     , _pollState :: PollerState
+    , _scontrolLogState :: SControlLogState Name
+    , _showLog :: Bool
     }
 
 makeLenses ''AppState
@@ -46,10 +51,15 @@ makeLenses ''AppState
 ------------------------------------------------------------
 -- Initial State
 
-initialState :: TChan P.Command -> AppState
-initialState chan =
-    AppState
-        { _jobQueueState = jobList SearchEditor JobListWidget
-        , _transient = Nothing
-        , _pollState = poller chan 10
-        }
+initialState :: IO AppState
+initialState = do
+    tailCommandChannel <- newTChanIO
+    scontrolCommandChannel <- newBChan 10
+    return $
+        AppState
+            { _jobQueueState = jobList SearchEditor JobListWidget
+            , _transient = Nothing
+            , _pollState = poller tailCommandChannel 10
+            , _scontrolLogState = scontrolLog SControlLogView scontrolCommandChannel
+            , _showLog = False
+            }

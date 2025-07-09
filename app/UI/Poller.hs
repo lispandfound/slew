@@ -61,4 +61,8 @@ pollTextWidget (PollerState{_buffer = (Right lns)}) = txt . foldMap (<> "\n") $ 
 pollTextWidget (PollerState{_buffer = (Left err)}) = str err
 
 drawPoller :: PollerState -> Widget n
-drawPoller st = if (null $ st ^. buffer) then emptyWidget else borderWithLabel (txt . fromMaybe "Output" $ st ^. currentFile) . padRight Max $ pollTextWidget st
+drawPoller st =
+    case st ^. currentFile of
+        Nothing -> emptyWidget
+        Just fp ->
+            borderWithLabel (txt fp) . padRight Max $ pollTextWidget st
