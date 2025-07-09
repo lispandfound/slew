@@ -22,11 +22,11 @@ module Model.SControl (
 import System.Exit (ExitCode (..))
 import System.Process (readProcessWithExitCode)
 
-data SControlError = SControlError {exitCode :: Int, stdout :: String, stderr :: String} deriving (Show)
-data SControlOutput = SControlOutput {stdout :: String, stderr :: String} deriving (Show)
+data SControlError = SControlError {cmd :: String, args :: [String], exitCode :: Int, stdout :: String, stderr :: String} deriving (Show)
+data SControlOutput = SControlOutput {cmd :: String, args :: [String], stdout :: String, stderr :: String} deriving (Show)
 
 cancelJob :: [Int] -> IO (Either SControlError SControlOutput)
-cancelJob ids = runSControl $ ["cancel"] <> map show ids
+cancelJob ids = runShell "scancel" (map show ids)
 
 requeueJob :: Int -> IO (Either SControlError SControlOutput)
 requeueJob jid = runSControl ["requeue", show jid]
@@ -63,8 +63,11 @@ waitJob jid = runSControl ["wait_job", show jid]
 
 -- | Run an SControl command and return either error or output.
 runSControl :: [String] -> IO (Either SControlError SControlOutput)
-runSControl args = do
-    (code, out, err) <- readProcessWithExitCode "scontrol" args ""
+runSControl = runShell "scontrol"
+
+runShell :: String -> [String] -> IO (Either SControlError SControlOutput)
+runShell cmd' args = do
+    (code, out, err) <- readProcessWithExitCode cmd' args ""
     pure $ case code of
-        ExitSuccess -> Right (SControlOutput out err)
-        ExitFailure num -> Left (SControlError num out err)
+        ExitSuccess -> Right (SControlOutput cmd' args out err)
+        ExitFailure num -> Left (SControlError cmd' args num out err)

@@ -4,12 +4,43 @@
 
 module UI.SControl (startSControlListener, scontrolLog, drawSControlLog, SControlCmd (..), SControlLogState, log, name, SControlLogEntry (..), result, command, chan, sendSControlCommand, logSControlEvent) where
 
-import Brick
-import Brick.BChan
+import Brick (
+    EventM,
+    Padding (Pad),
+    ViewportType (Vertical),
+    Widget,
+    attrName,
+    emptyWidget,
+    hBox,
+    padLeftRight,
+    padRight,
+    str,
+    txt,
+    vBox,
+    viewport,
+    withAttr,
+    (<+>),
+ )
+import Brick.BChan (BChan, readBChan, writeBChan)
 import Brick.Widgets.Border (borderWithLabel)
 import Brick.Widgets.Center (centerLayer)
-import Control.Lens
-import Model.SControl
+import Control.Lens (makeLenses, use, (%=), (^.))
+import Model.SControl (
+    SControlError (SControlError, exitCode, stderr),
+    SControlOutput (SControlOutput, stdout),
+    cancelJob,
+    holdJob,
+    notifyJob,
+    releaseJob,
+    requeueHoldJob,
+    requeueJob,
+    resumeJob,
+    suspendJob,
+    topJob,
+    userHoldJob,
+    waitJob,
+    writeBatchScript,
+ )
 
 data SControlCmd
     = CancelJob [Int]
@@ -71,17 +102,17 @@ scontrolLog name' chan' =
 
 formatShellCommand :: SControlCmd -> Widget n
 formatShellCommand cmd =
-    str "scontrol" <+> case cmd of
-        CancelJob ids -> format "cancel" ids
-        RequeueJob jid -> format "requeue" [jid]
-        RequeueHoldJob jid -> format "requeuehold" [jid]
-        HoldJob ids -> format "hold" ids
-        UserHoldJob ids -> format "userhold" ids
-        ReleaseJob ids -> format "release" ids
-        ResumeJob ids -> format "resume" ids
-        SuspendJob ids -> format "suspend" ids
-        TopJob ids -> format "top" ids
-        NotifyJob jid msg -> format "notify" [jid] <+> str msg
+    case cmd of
+        CancelJob ids -> format "scancel" ids
+        RequeueJob jid -> format "scontrol requeue" [jid]
+        RequeueHoldJob jid -> format "scontrol requeuehold" [jid]
+        HoldJob ids -> format "scontrol hold" ids
+        UserHoldJob ids -> format "scontrol userhold" ids
+        ReleaseJob ids -> format "scontrol release" ids
+        ResumeJob ids -> format "scontrol resume" ids
+        SuspendJob ids -> format "scontrol suspend" ids
+        TopJob ids -> format "scontrol top" ids
+        NotifyJob jid msg -> format "scontrol notify" [jid] <+> str msg
         WriteBatchScript jid fname ->
             format "writebatch" [jid]
                 <+> maybe emptyWidget str fname

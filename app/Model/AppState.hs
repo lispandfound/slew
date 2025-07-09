@@ -7,22 +7,29 @@ module Model.AppState (
     Command (..),
     Category (..),
     Name (..),
+    squeueChannel,
     jobQueueState,
     transient,
     pollState,
     initialState,
     scontrolLogState,
     showLog,
+    triggerSqueue,
 ) where
 
-import Brick.BChan
+import Brick (EventM)
+import Brick.BChan (BChan, newBChan, writeBChan)
 import Control.Concurrent.STM.TChan (newTChanIO)
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, use)
 import Model.Job (Job)
 import UI.JobList (JobQueueState, jobList)
 import UI.Poller (PollerState, poller)
 import qualified UI.Poller as UP
-import UI.SControl
+import UI.SControl (
+    SControlLogEntry,
+    SControlLogState,
+    scontrolLog,
+ )
 import qualified UI.Transient as TR
 
 ------------------------------------------------------------
@@ -43,6 +50,7 @@ data AppState = AppState
     , _transient :: Maybe (TR.TransientState SlewEvent)
     , _pollState :: PollerState
     , _scontrolLogState :: SControlLogState Name
+    , _squeueChannel :: BChan ()
     , _showLog :: Bool
     }
 
@@ -51,14 +59,21 @@ makeLenses ''AppState
 ------------------------------------------------------------
 -- Initial State
 
+triggerSqueue :: EventM n AppState ()
+triggerSqueue = do
+    ch <- use squeueChannel
+    liftIO (writeBChan ch ())
+
 initialState :: IO AppState
 initialState = do
     tailCommandChannel <- newTChanIO
     scontrolCommandChannel <- newBChan 10
+    squeueChannel' <- newBChan 10
     return $
         AppState
             { _jobQueueState = jobList SearchEditor JobListWidget
             , _transient = Nothing
+            , _squeueChannel = squeueChannel'
             , _pollState = poller tailCommandChannel 10
             , _scontrolLogState = scontrolLog SControlLogView scontrolCommandChannel
             , _showLog = False

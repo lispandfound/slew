@@ -5,13 +5,36 @@ module UI.Event (
     handleEvent,
 ) where
 
-import Brick
-import Control.Lens hiding (zoom)
+import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, zoom)
+import Control.Lens (preuse, use, view, (%=), (.=), (^.), _Just)
 import qualified Graphics.Vty as V
 import UI.SControl (SControlCmd (..), sendSControlCommand)
 
-import Model.AppState
-import Model.Job
+import Model.AppState (
+    AppState,
+    Category (..),
+    Command (Cancel, Hold, Release, Resume, Suspend, Top),
+    Name,
+    SlewEvent (..),
+    jobQueueState,
+    pollState,
+    scontrolLogState,
+    showLog,
+    transient,
+    triggerSqueue,
+ )
+import Model.Job (
+    Job,
+    account,
+    cpus,
+    endTime,
+    jobId,
+    memoryPerNode,
+    name,
+    standardOutput,
+    startTime,
+    userName,
+ )
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (handlePollerEvent, tailFile)
 import UI.SControl (logSControlEvent)
@@ -97,6 +120,6 @@ handleEvent (AppEvent (SControlSend msg)) = do
     scontrolCommand Hold job = HoldJob [job ^. jobId]
     scontrolCommand Release job = ReleaseJob [job ^. jobId]
     scontrolCommand Top job = TopJob [job ^. jobId]
-handleEvent (AppEvent (SControlReceive output)) = zoom scontrolLogState (logSControlEvent output)
+handleEvent (AppEvent (SControlReceive output)) = zoom scontrolLogState (logSControlEvent output) >> triggerSqueue
 handleEvent (AppEvent (PollEvent ev)) = zoom pollState (handlePollerEvent ev)
 handleEvent _ = pure ()

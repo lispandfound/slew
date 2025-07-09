@@ -3,10 +3,18 @@
 
 module UI.Poller (PollerState, PollEvent (..), drawPoller, poller, handlePollerEvent, currentFile, tailFile, startPoller, commandChannel, buffer, maxLines) where
 
-import Brick
+import Brick (
+    EventM,
+    Padding (Max),
+    Widget,
+    emptyWidget,
+    padRight,
+    str,
+    txt,
+ )
 import Brick.Widgets.Border (borderWithLabel)
-import Control.Concurrent.STM.TChan
-import Control.Lens
+import Control.Concurrent.STM.TChan (TChan, writeTChan)
+import Control.Lens (makeLenses, use, (.=), (^.))
 import qualified Data.Sequence as Seq
 
 import qualified Data.Text as T

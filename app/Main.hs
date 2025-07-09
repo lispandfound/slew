@@ -2,16 +2,48 @@
 
 module Main where
 
-import Brick
+import Brick (
+    App (..),
+    AttrMap,
+    attrMap,
+    attrName,
+    customMain,
+    fg,
+    showFirstCursor,
+ )
 import qualified Brick.BChan as BC
 import Control.Concurrent.Async (withAsync)
 import Control.Lens ((^.))
 import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
-import Model.AppState
-import Options.Applicative
-import SQueue.Poller
+import Model.AppState (
+    AppState,
+    Name,
+    SlewEvent (PollEvent, SControlReceive, SQueueStatus),
+    initialState,
+    pollState,
+    scontrolLogState,
+    squeueChannel,
+ )
+import Options.Applicative (
+    Parser,
+    ParserInfo,
+    auto,
+    execParser,
+    fullDesc,
+    header,
+    help,
+    helper,
+    info,
+    long,
+    metavar,
+    option,
+    short,
+    showDefault,
+    value,
+ )
+import SQueue.Poller (squeueThread)
 import UI.Event (handleEvent)
 import UI.Poller (commandChannel, startPoller)
 import UI.SControl (SControlLogEntry (..), chan, startSControlListener)
@@ -68,7 +100,7 @@ main = do
     is <- initialState
     eventChannel <- BC.newBChan 10
     opts <- execParser cli
-    withAsync (squeueThread (pollInterval opts) SQueueStatus eventChannel) $ \_ ->
+    withAsync (squeueThread (pollInterval opts) (is ^. squeueChannel) (BC.writeBChan eventChannel . SQueueStatus)) $ \_ ->
         withAsync (startPoller (is ^. pollState ^. commandChannel) (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
             withAsync (startSControlListener (is ^. scontrolLogState ^. chan) (\cmd output -> BC.writeBChan eventChannel (SControlReceive (SControlLogEntry cmd output)))) $ \_ -> do
                 let buildVty = mkVty defaultConfig
