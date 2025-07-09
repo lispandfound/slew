@@ -12,11 +12,9 @@ import Fmt
 import qualified Graphics.Vty as V
 import System.Process (spawnCommand, waitForProcess)
 
-import Brick.Widgets.List (listElementsL)
-import qualified Data.Vector as Vec
 import Model.AppState
 import Model.Job
-import UI.JobList (Sorter, handleJobQueueEvent, jobListState, selectedJob, sortKey, sorter)
+import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (handlePollerEvent, tailFile)
 import qualified UI.Transient as TR
 
@@ -50,14 +48,14 @@ sortTransient =
             , TR.item 'm' "Memory (per node)" (SortBy Memory)
             ]
 
-sortListByCat :: Category -> Sorter
-sortListByCat Account = sorter (view account)
-sortListByCat CPUs = sorter (view cpus)
-sortListByCat StartTime = sorter (view startTime)
-sortListByCat EndTime = sorter (view endTime)
-sortListByCat JobName = sorter (view name)
-sortListByCat UserName = sorter (view userName)
-sortListByCat Memory = sorter (view memoryPerNode)
+sortListByCat :: Category -> Job -> Job -> Ordering
+sortListByCat Account = comparing (view account)
+sortListByCat CPUs = comparing (view cpus)
+sortListByCat StartTime = comparing (view startTime)
+sortListByCat EndTime = comparing (view endTime)
+sortListByCat JobName = comparing (view name)
+sortListByCat UserName = comparing (view userName)
+sortListByCat Memory = comparing (view memoryPerNode)
 
 -- | Main event handler
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
@@ -81,8 +79,8 @@ handleEvent (VtyEvent e) = do
         Just (TR.Msg msg') -> transient .= Nothing >> handleEvent (AppEvent msg')
         Just TR.Next -> pure ()
         _ -> zoom jobQueueState (handleJobQueueEvent e)
-handleEvent (AppEvent (SQueueStatus jobs)) = jobQueueState . jobListState . listElementsL .= Vec.fromList jobs
-handleEvent (AppEvent (SortBy category)) = jobQueueState . sortKey .= Just (sortListByCat category)
+handleEvent (AppEvent (SQueueStatus jobs)) = zoom jobQueueState (updateJobList jobs)
+handleEvent (AppEvent (SortBy category)) = zoom jobQueueState (updateSortKey (sortListByCat category))
 handleEvent (AppEvent (SControl Cancel)) = shellWithJob cancelCmd
   where
     cancelCmd job = "scancel " +| job ^. jobId |+ ""
