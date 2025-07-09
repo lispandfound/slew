@@ -28,13 +28,13 @@ import Model.AppState (
 import UI.JobList (drawJobList, drawSearchBar, selectedJob)
 import UI.JobPanel (drawJobPanel)
 import UI.Poller (drawPoller)
-import UI.SControl (drawSControlLog)
+import UI.SlurmCommand (drawSlurmCommandLog)
 import UI.Transient (drawTransientView)
 
 -- | Top-level renderer for the entire application.
 drawApp :: AppState -> [Widget Name]
 drawApp st =
-    (if st ^. showLog then [drawSControlLog (st ^. scontrolLogState)] else [])
+    (if st ^. showLog then [drawSlurmCommandLog (st ^. scontrolLogState)] else [])
         <> [ vBox
                 [ (drawSearchBar (st ^. jobQueueState) <=> hBorder)
                 , (drawJobList (st ^. jobQueueState) <+> maybe emptyWidget drawJobPanel (st ^? jobQueueState . selectedJob))

@@ -25,9 +25,9 @@ import Model.Job (Job)
 import UI.JobList (JobQueueState, jobList)
 import UI.Poller (PollerState, poller)
 import qualified UI.Poller as UP
-import UI.SControl (
-    SControlLogEntry,
-    SControlLogState,
+import UI.SlurmCommand (
+    SlurmCommandLogEntry,
+    SlurmCommandLogState,
     scontrolLog,
  )
 import qualified UI.Transient as TR
@@ -37,9 +37,9 @@ import qualified UI.Transient as TR
 
 data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
 data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
-data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SControlSend Command | SControlReceive SControlLogEntry | SortBy Category deriving (Show)
+data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SlurmCommandSend Command | SlurmCommandReceive SlurmCommandLogEntry | SortBy Category deriving (Show)
 
-data Name = SearchEditor | JobListWidget | SControlLogView
+data Name = SearchEditor | JobListWidget | SlurmCommandLogView
     deriving (Eq, Ord, Show)
 
 ------------------------------------------------------------
@@ -49,7 +49,7 @@ data AppState = AppState
     { _jobQueueState :: JobQueueState Name
     , _transient :: Maybe (TR.TransientState SlewEvent)
     , _pollState :: PollerState
-    , _scontrolLogState :: SControlLogState Name
+    , _scontrolLogState :: SlurmCommandLogState Name
     , _squeueChannel :: BChan ()
     , _showLog :: Bool
     }
@@ -75,6 +75,6 @@ initialState = do
             , _transient = Nothing
             , _squeueChannel = squeueChannel'
             , _pollState = poller tailCommandChannel 10
-            , _scontrolLogState = scontrolLog SControlLogView scontrolCommandChannel
+            , _scontrolLogState = scontrolLog SlurmCommandLogView scontrolCommandChannel
             , _showLog = False
             }

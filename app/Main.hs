@@ -20,7 +20,7 @@ import Graphics.Vty.CrossPlatform (mkVty)
 import Model.AppState (
     AppState,
     Name,
-    SlewEvent (PollEvent, SControlReceive, SQueueStatus),
+    SlewEvent (PollEvent, SQueueStatus, SlurmCommandReceive),
     initialState,
     pollState,
     scontrolLogState,
@@ -46,7 +46,7 @@ import Options.Applicative (
 import SQueue.Poller (squeueThread)
 import UI.Event (handleEvent)
 import UI.Poller (commandChannel, startPoller)
-import UI.SControl (SControlLogEntry (..), chan, startSControlListener)
+import UI.SlurmCommand (SlurmCommandLogEntry (..), chan, startSlurmCommandListener)
 import UI.View (drawApp)
 
 ------------------------------------------------------------
@@ -102,7 +102,7 @@ main = do
     opts <- execParser cli
     withAsync (squeueThread (pollInterval opts) (is ^. squeueChannel) (BC.writeBChan eventChannel . SQueueStatus)) $ \_ ->
         withAsync (startPoller (is ^. pollState ^. commandChannel) (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
-            withAsync (startSControlListener (is ^. scontrolLogState ^. chan) (\cmd output -> BC.writeBChan eventChannel (SControlReceive (SControlLogEntry cmd output)))) $ \_ -> do
+            withAsync (startSlurmCommandListener (is ^. scontrolLogState ^. chan) (\cmd output -> BC.writeBChan eventChannel (SlurmCommandReceive (SlurmCommandLogEntry cmd output)))) $ \_ -> do
                 let buildVty = mkVty defaultConfig
 
                 initialVty <- buildVty
