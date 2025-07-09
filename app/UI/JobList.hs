@@ -11,6 +11,7 @@ import Brick (
     Widget,
     attrName,
     hBox,
+    padLeft,
     padRight,
     str,
     txt,
@@ -27,8 +28,10 @@ import Control.Lens (
     Traversal',
     lens,
     makeLenses,
-    (%~),
-    (.~),
+    to,
+    use,
+    (%=),
+    (.=),
     (^.),
  )
 import qualified Data.Text as T
@@ -51,14 +54,9 @@ import Model.Job (
     timeLimit,
  )
 
-data Sorter = forall a. (Ord a) => Sorter {unSorter :: (Job -> a)}
-
-sorter :: (Ord a) => (Job -> a) -> Sorter
-sorter f = Sorter{unSorter = f}
-
 data JobQueueState n = JobQueueState
     { _searchEditor :: Editor Text n
-    , _sortKey :: Maybe Sorter
+    , _sortKey :: Maybe (Job -> Job -> Ordering)
     , _jobListState :: GenericList n Vector Job
     , _allJobs :: [Job]
     }
@@ -89,6 +87,20 @@ filterJobs searchTerm =
              in any (searchLower `T.isInfixOf`) $ map T.toLower fields
      in filter matches
 
+updateSortKey :: (Ord n, Show n) => (Job -> Job -> Ordering) -> EventM n (JobQueueState n) ()
+updateSortKey key = sortKey .= Just key >> updateListState
+
+updateJobList :: (Ord n, Show n) => [Job] -> EventM n (JobQueueState n) ()
+updateJobList jobs = allJobs .= jobs >> updateListState
+
+updateListState :: (Ord n, Show n) => EventM n (JobQueueState n) ()
+updateListState = do
+    key <- use (sortKey . to (fmap sortBy))
+    searchTerm <- use currentSearchTerm
+    jobs <- use allJobs
+    selection <- use (jobListState . listSelectedL)
+    jobListState %= listReplace ((Vec.fromList . fromMaybe id key . filterJobs searchTerm) jobs) selection
+
 currentSearchTerm :: Lens' (JobQueueState n) Text
 currentSearchTerm = searchEditor . editContentsL . lens getter setter
   where
@@ -103,23 +115,14 @@ drawSearchBar :: (Ord n, Show n) => JobQueueState n -> Widget n
 drawSearchBar st =
     str "Search Jobs: " <+> renderEditor (txt . T.unlines) True (st ^. searchEditor)
 
-modifyList :: ([a] -> [a]) -> GenericList n Vector a -> GenericList n Vector a
-modifyList f l = listReplace ((Vec.fromList . f . Vec.toList) (l ^. listElementsL)) (l ^. listSelectedL) l
-
 -- | Render the job list widget.
 drawJobList :: (Ord n, Show n) => JobQueueState n -> Widget n
 drawJobList st =
-    let
-        sortedList = sortList (st ^. sortKey) (st ^. jobListState)
-     in
-        borderWithLabel (txt . fmt $ "SLURM Queue (" +| Vec.length (sortedList ^. listElementsL) |+ " jobs)") $
-            renderList
-                drawJobItem
-                True
-                sortedList
-  where
-    sortList Nothing = modifyList (filterJobs (st ^. currentSearchTerm))
-    sortList (Just (Sorter{unSorter = f})) = modifyList (sortOn f . filterJobs (st ^. currentSearchTerm))
+    borderWithLabel (txt . fmt $ "SLURM Queue (" +| Vec.length (st ^. jobListState ^. listElementsL) |+ " jobs)") $
+        renderList
+            drawJobItem
+            True
+            (st ^. jobListState)
 
 -- | Render a single item in the job list.
 drawJobItem :: Bool -> Job -> Widget n
@@ -127,16 +130,16 @@ drawJobItem selected job =
     let style = if selected then withAttr (attrName "selected") else id
      in style . padRight Max . vBox $
             [ hBox
-                [ padRight (Pad 2) . str . show $ job ^. jobId
-                , padRight (Pad 2) . txt . T.take 12 $ job ^. name
-                , padRight (Pad 2) . txt . T.take 8 $ job ^. account
-                , padRight (Pad 2) . txt . T.take 10 . T.intercalate " " $ job ^. jobState
-                , padRight (Pad 2) . txt . T.take 10 . showWith formatTime $ job ^. timeLimit
-                , txt $ job ^. nodes
+                [ padLeft (Pad 2) . padRight Max . str . show $ job ^. jobId
+                , padRight Max . txt . T.take 12 $ job ^. name
+                , padRight Max . txt . T.take 8 $ job ^. account
+                , padRight Max . txt . T.take 10 . T.intercalate " " $ job ^. jobState
+                , padRight Max . txt . T.take 10 . showWith formatTime $ job ^. timeLimit
+                , padRight (Pad 2) . txt $ job ^. nodes
                 ]
             ]
 
 handleJobQueueEvent :: (Ord n, Show n) => V.Event -> EventM n (JobQueueState n) ()
 handleJobQueueEvent e@(V.EvKey V.KUp []) = zoom jobListState (handleListEvent e)
 handleJobQueueEvent e@(V.EvKey V.KDown []) = zoom jobListState (handleListEvent e)
-handleJobQueueEvent e = zoom searchEditor $ handleEditorEvent (VtyEvent e)
+handleJobQueueEvent e = zoom searchEditor (handleEditorEvent (VtyEvent e)) >> updateListState
