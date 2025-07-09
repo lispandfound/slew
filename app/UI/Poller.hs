@@ -3,10 +3,18 @@
 
 module UI.Poller (PollerState, PollEvent (..), drawPoller, poller, handlePollerEvent, currentFile, tailFile, startPoller, commandChannel, buffer, maxLines) where
 
-import Brick
+import Brick (
+    EventM,
+    Padding (Max),
+    Widget,
+    emptyWidget,
+    padRight,
+    str,
+    txt,
+ )
 import Brick.Widgets.Border (borderWithLabel)
-import Control.Concurrent.STM.TChan
-import Control.Lens
+import Control.Concurrent.STM.TChan (TChan, writeTChan)
+import Control.Lens (makeLenses, use, (.=), (^.))
 import qualified Data.Sequence as Seq
 
 import qualified Data.Text as T
@@ -61,4 +69,8 @@ pollTextWidget (PollerState{_buffer = (Right lns)}) = txt . foldMap (<> "\n") $ 
 pollTextWidget (PollerState{_buffer = (Left err)}) = str err
 
 drawPoller :: PollerState -> Widget n
-drawPoller st = if (null $ st ^. buffer) then emptyWidget else borderWithLabel (txt . fromMaybe "Output" $ st ^. currentFile) . padRight Max $ pollTextWidget st
+drawPoller st =
+    case st ^. currentFile of
+        Nothing -> emptyWidget
+        Just fp ->
+            borderWithLabel (txt fp) . padRight Max $ pollTextWidget st

@@ -2,18 +2,51 @@
 
 module Main where
 
-import Brick
+import Brick (
+    App (..),
+    AttrMap,
+    attrMap,
+    attrName,
+    customMain,
+    fg,
+    showFirstCursor,
+ )
 import qualified Brick.BChan as BC
 import Control.Concurrent.Async (withAsync)
-import Control.Concurrent.STM.TChan (newTChanIO)
+import Control.Lens ((^.))
 import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
-import Model.AppState
-import Options.Applicative
-import SQueue.Poller
+import Model.AppState (
+    AppState,
+    Name,
+    SlewEvent (PollEvent, SQueueStatus, SlurmCommandReceive),
+    initialState,
+    pollState,
+    scontrolLogState,
+    squeueChannel,
+ )
+import Options.Applicative (
+    Parser,
+    ParserInfo,
+    auto,
+    execParser,
+    fullDesc,
+    header,
+    help,
+    helper,
+    info,
+    long,
+    metavar,
+    option,
+    short,
+    showDefault,
+    value,
+ )
+import SQueue.Poller (squeueThread)
 import UI.Event (handleEvent)
-import UI.Poller (startPoller)
+import UI.Poller (commandChannel, startPoller)
+import UI.SlurmCommand (SlurmCommandLogEntry (..), chan, startSlurmCommandListener)
 import UI.View (drawApp)
 
 ------------------------------------------------------------
@@ -43,8 +76,11 @@ appAttrs =
         , (attrName "jobState.COMPLETED", fg V.blue)
         , (attrName "jobState.FAILED", fg V.red)
         , (attrName "jobState.CANCELLED", V.withStyle V.defAttr V.reverseVideo)
+        , (attrName "exitFailure", fg V.red)
+        , (attrName "exitSuccess", fg V.green)
         , (attrName "jobLabel", fg V.cyan)
         , (attrName "jobValue", fg V.white)
+        , (attrName "jobId", fg V.blue)
         ]
 
 ------------------------------------------------------------
@@ -61,12 +97,13 @@ cli = info (options <**> helper) (fullDesc <> header "slew - Slurm for the rest 
 
 main :: IO ()
 main = do
+    is <- initialState
     eventChannel <- BC.newBChan 10
-    commandChannel <- newTChanIO
     opts <- execParser cli
-    withAsync (squeueThread (pollInterval opts) SQueueStatus eventChannel) $ \_ ->
-        withAsync (startPoller commandChannel (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
-            let buildVty = mkVty defaultConfig
-                is = initialState commandChannel
-            initialVty <- buildVty
-            void $ customMain initialVty buildVty (Just eventChannel) app is
+    withAsync (squeueThread (pollInterval opts) (is ^. squeueChannel) (BC.writeBChan eventChannel . SQueueStatus)) $ \_ ->
+        withAsync (startPoller (is ^. pollState ^. commandChannel) (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
+            withAsync (startSlurmCommandListener (is ^. scontrolLogState ^. chan) (\cmd output -> BC.writeBChan eventChannel (SlurmCommandReceive (SlurmCommandLogEntry cmd output)))) $ \_ -> do
+                let buildVty = mkVty defaultConfig
+
+                initialVty <- buildVty
+                void $ customMain initialVty buildVty (Just eventChannel) app is

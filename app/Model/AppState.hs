@@ -7,19 +7,29 @@ module Model.AppState (
     Command (..),
     Category (..),
     Name (..),
+    squeueChannel,
     jobQueueState,
     transient,
     pollState,
     initialState,
+    scontrolLogState,
+    showLog,
+    triggerSqueue,
 ) where
 
-import Control.Concurrent.STM.TChan (TChan)
-import Control.Lens (makeLenses)
+import Brick (EventM)
+import Brick.BChan (BChan, newBChan, writeBChan)
+import Control.Concurrent.STM.TChan (newTChanIO)
+import Control.Lens (makeLenses, use)
 import Model.Job (Job)
-import qualified Tail.Poller as P
 import UI.JobList (JobQueueState, jobList)
 import UI.Poller (PollerState, poller)
 import qualified UI.Poller as UP
+import UI.SlurmCommand (
+    SlurmCommandLogEntry,
+    SlurmCommandLogState,
+    scontrolLog,
+ )
 import qualified UI.Transient as TR
 
 ------------------------------------------------------------
@@ -27,9 +37,9 @@ import qualified UI.Transient as TR
 
 data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
 data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
-data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SControl Command | SortBy Category deriving (Show)
+data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SlurmCommandSend Command | SlurmCommandReceive SlurmCommandLogEntry | SortBy Category deriving (Show)
 
-data Name = SearchEditor | JobListWidget
+data Name = SearchEditor | JobListWidget | SlurmCommandLogView
     deriving (Eq, Ord, Show)
 
 ------------------------------------------------------------
@@ -39,6 +49,9 @@ data AppState = AppState
     { _jobQueueState :: JobQueueState Name
     , _transient :: Maybe (TR.TransientState SlewEvent)
     , _pollState :: PollerState
+    , _scontrolLogState :: SlurmCommandLogState Name
+    , _squeueChannel :: BChan ()
+    , _showLog :: Bool
     }
 
 makeLenses ''AppState
@@ -46,10 +59,22 @@ makeLenses ''AppState
 ------------------------------------------------------------
 -- Initial State
 
-initialState :: TChan P.Command -> AppState
-initialState chan =
-    AppState
-        { _jobQueueState = jobList SearchEditor JobListWidget
-        , _transient = Nothing
-        , _pollState = poller chan 10
-        }
+triggerSqueue :: EventM n AppState ()
+triggerSqueue = do
+    ch <- use squeueChannel
+    liftIO (writeBChan ch ())
+
+initialState :: IO AppState
+initialState = do
+    tailCommandChannel <- newTChanIO
+    scontrolCommandChannel <- newBChan 10
+    squeueChannel' <- newBChan 10
+    return $
+        AppState
+            { _jobQueueState = jobList SearchEditor JobListWidget
+            , _transient = Nothing
+            , _squeueChannel = squeueChannel'
+            , _pollState = poller tailCommandChannel 10
+            , _scontrolLogState = scontrolLog SlurmCommandLogView scontrolCommandChannel
+            , _showLog = False
+            }

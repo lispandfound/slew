@@ -3,19 +3,41 @@
 
 module UI.Event (
     handleEvent,
-    shellWithJob,
 ) where
 
-import Brick
-import Control.Lens hiding (zoom)
-import Fmt
+import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, zoom)
+import Control.Lens (preuse, use, view, (%=), (.=), (^.), _Just)
 import qualified Graphics.Vty as V
-import System.Process (spawnCommand, waitForProcess)
+import UI.SlurmCommand (SlurmCommandCmd (..), sendSlurmCommandCommand)
 
-import Model.AppState
-import Model.Job
+import Model.AppState (
+    AppState,
+    Category (..),
+    Command (Cancel, Hold, Release, Resume, Suspend, Top),
+    Name,
+    SlewEvent (..),
+    jobQueueState,
+    pollState,
+    scontrolLogState,
+    showLog,
+    transient,
+    triggerSqueue,
+ )
+import Model.Job (
+    Job,
+    account,
+    cpus,
+    endTime,
+    jobId,
+    memoryPerNode,
+    name,
+    standardOutput,
+    startTime,
+    userName,
+ )
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (handlePollerEvent, tailFile)
+import UI.SlurmCommand (logSlurmCommandEvent)
 import qualified UI.Transient as TR
 
 scontrolTransient :: TR.TransientState SlewEvent
@@ -24,14 +46,14 @@ scontrolTransient =
         mconcat
             [ TR.submenu 's' "State Control" $
                 mconcat
-                    [ TR.item 'h' "Hold" (SControl Hold)
-                    , TR.item 'r' "Resume" (SControl Resume)
-                    , TR.item 's' "Suspend" (SControl Suspend)
-                    , TR.item 'c' "Cancel" (SControl Cancel)
+                    [ TR.item 'h' "Hold" (SlurmCommandSend Hold)
+                    , TR.item 'r' "Resume" (SlurmCommandSend Resume)
+                    , TR.item 's' "Suspend" (SlurmCommandSend Suspend)
+                    , TR.item 'c' "Cancel" (SlurmCommandSend Cancel)
                     ]
             , TR.submenu 'p' "Priority" $
                 mconcat
-                    [ TR.item 't' "Top" (SControl Top)
+                    [ TR.item 't' "Top" (SlurmCommandSend Top)
                     ]
             ]
 
@@ -59,10 +81,13 @@ sortListByCat Memory = comparing (view memoryPerNode)
 
 -- | Main event handler
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
+handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = showLog %= not
 handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
     msg <- getFirst <$> zoom (transient . _Just) (TR.handleTransientEvent e)
-    case msg of
-        Just TR.Close -> transient .= Nothing
+    showingLog <- use showLog
+    case (showingLog, msg) of
+        (True, _) -> showLog .= False
+        (False, Just TR.Close) -> transient .= Nothing
         _ -> halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
@@ -81,35 +106,20 @@ handleEvent (VtyEvent e) = do
         _ -> zoom jobQueueState (handleJobQueueEvent e)
 handleEvent (AppEvent (SQueueStatus jobs)) = zoom jobQueueState (updateJobList jobs)
 handleEvent (AppEvent (SortBy category)) = zoom jobQueueState (updateSortKey (sortListByCat category))
-handleEvent (AppEvent (SControl Cancel)) = shellWithJob cancelCmd
+handleEvent (AppEvent (SlurmCommandSend msg)) = do
+    job <- preuse (jobQueueState . selectedJob)
+    case job of
+        Just job' -> do
+            let cmd = scontrolCommand msg job'
+            zoom scontrolLogState (sendSlurmCommandCommand cmd)
+        Nothing -> pure ()
   where
-    cancelCmd job = "scancel " +| job ^. jobId |+ ""
-handleEvent (AppEvent (SControl Hold)) = shellWithJob (scontrol "hold")
-handleEvent (AppEvent (SControl Resume)) = shellWithJob (scontrol "resume")
-handleEvent (AppEvent (SControl Suspend)) = shellWithJob (scontrol "suspend")
-handleEvent (AppEvent (SControl Release)) = shellWithJob (scontrol "release")
-handleEvent (AppEvent (SControl Top)) = shellWithJob topCmd
-  where
-    topCmd job = "scontrol update job=" +| job ^. jobId |+ " priority=Top"
+    scontrolCommand Cancel job = CancelJob [job ^. jobId]
+    scontrolCommand Suspend job = SuspendJob [job ^. jobId]
+    scontrolCommand Resume job = ResumeJob [job ^. jobId]
+    scontrolCommand Hold job = HoldJob [job ^. jobId]
+    scontrolCommand Release job = ReleaseJob [job ^. jobId]
+    scontrolCommand Top job = TopJob [job ^. jobId]
+handleEvent (AppEvent (SlurmCommandReceive output)) = zoom scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
 handleEvent (AppEvent (PollEvent ev)) = zoom pollState (handlePollerEvent ev)
 handleEvent _ = pure ()
-
-------------------------------------------------------------
--- Helpers
-
-exec :: (MonadIO m) => String -> m ()
-exec cmd = liftIO $ do
-    cmdHandle <- spawnCommand cmd
-    void $ waitForProcess cmdHandle
-
-shellWithJob :: (Job -> String) -> EventM Name AppState ()
-shellWithJob f = do
-    jobMay <- preuse (jobQueueState . selectedJob)
-    case jobMay of
-        Just job ->
-            do
-                (exec . f) job
-        Nothing -> pure ()
-
-scontrol :: String -> Job -> String
-scontrol verb job = "scontrol " +| verb |+ " " +| job ^. jobId |+ ""

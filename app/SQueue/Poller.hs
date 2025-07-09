@@ -2,8 +2,9 @@
 
 module SQueue.Poller (squeueThread) where
 
-import Brick.BChan as BC (BChan, writeBChan)
+import Brick.BChan as BC (BChan, readBChan)
 import Control.Concurrent (threadDelay)
+import Control.Concurrent.Async (race)
 import Data.Aeson (eitherDecode)
 import Model.Job (Job)
 import Model.SQueue (jobs)
@@ -14,10 +15,10 @@ pollJobs = do
     squeueFile <- readCreateProcess (shell "squeue --json") ""
     return . second jobs . eitherDecode . encodeUtf8 $ squeueFile
 
-squeueThread :: Int -> ([Job] -> a) -> BC.BChan a -> IO void
-squeueThread pollingInterval f chan = forever $ do
+squeueThread :: Int -> BChan () -> ([Job] -> IO ()) -> IO void
+squeueThread pollingInterval promptChannel callback = forever $ do
     _jobs <- pollJobs
     case _jobs of
-        Right sqStatus -> BC.writeBChan chan . f $ sqStatus
+        Right sqStatus -> callback sqStatus
         Left err -> putStrLn err >> pure ()
-    threadDelay (pollingInterval * 1_000_000)
+    race (readBChan promptChannel) (threadDelay (pollingInterval * 1_000_000))
