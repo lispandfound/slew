@@ -28,7 +28,6 @@ import Brick.Widgets.Edit (Editor, editContentsL, editor, handleEditorEvent, ren
 import Brick.Widgets.List (listElementsL, listReplace, listSelectedElementL, listSelectedL)
 import Brick.Widgets.TabularList.Mixed
 import Control.Lens (
-    At (at),
     Ixed (ix),
     Lens',
     Traversal',
@@ -50,8 +49,6 @@ import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Fmt (fmt, (+|), (|+))
-import Graphics.Vty (withStyle)
-import Graphics.Vty.Attributes (reverseVideo)
 import Model.Job (
     Job,
     Quantity (Set),
