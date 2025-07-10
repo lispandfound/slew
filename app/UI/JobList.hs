@@ -1,4 +1,8 @@
+{-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE NamedFieldPuns #-}
+{-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TemplateHaskell #-}
 
@@ -7,22 +11,22 @@ module UI.JobList where
 import Brick (
     BrickEvent (VtyEvent),
     EventM,
-    Padding (Max, Pad),
+    Padding (Max),
     Widget,
     attrName,
-    hBox,
-    padLeft,
+    emptyWidget,
     padRight,
     str,
     txt,
-    vBox,
     withAttr,
     zoom,
     (<+>),
+    (<=>),
  )
-import Brick.Widgets.Border (borderWithLabel)
+import Brick.Widgets.Border (borderWithLabel, hBorder)
 import Brick.Widgets.Edit (Editor, editContentsL, editor, handleEditorEvent, renderEditor)
-import Brick.Widgets.List (GenericList, handleListEvent, list, listElementsL, listReplace, listSelectedElementL, listSelectedL, renderList)
+import Brick.Widgets.List (listElementsL, listReplace, listSelectedElementL, listSelectedL)
+import Brick.Widgets.TabularList.Mixed
 import Control.Lens (
     Lens',
     Traversal',
@@ -54,22 +58,48 @@ import Model.Job (
     timeLimit,
  )
 
+type JobTabularList n = MixedTabularList n Job Widths
+type JobRenderers n = MixedRenderers n Job Widths
+
+data Widths = Widths {jobCols :: [ColWidth]} deriving (Generic)
+
 data JobQueueState n = JobQueueState
     { _searchEditor :: Editor Text n
     , _sortKey :: Maybe (Job -> Job -> Ordering)
-    , _jobListState :: GenericList n Vector Job
+    , _jobListState :: JobTabularList n
+    , _renderers :: JobRenderers n
     , _allJobs :: [Job]
     }
 
 makeLenses ''JobQueueState
 
+colHeader :: MixedColHdr n Widths
+colHeader =
+    MixedColHdr
+        { draw = \_ (MColC (Ix ci)) ->
+            case columnHeaderNames Vec.!? ci of
+                Just colName -> withAttr (attrName "columnHeader") (padRight Max (txt colName) <+> str " ") <=> hBorder
+                Nothing -> emptyWidget
+        , widths = \Widths{jobCols} -> jobCols
+        , height = ColHdrH 2
+        }
+defJobRenderers :: JobRenderers n
+defJobRenderers =
+    MixedRenderers
+        { cell = cellRenderer -- from earlier
+        , rowHdr = Nothing
+        , colHdr = Just colHeader -- optional, or Nothing
+        , colHdrRowHdr = Nothing
+        }
+
 jobList :: n -> n -> JobQueueState n
 jobList editName listName =
     JobQueueState
         { _searchEditor = editor editName (Just 1) ""
-        , _jobListState = list listName mempty 1
+        , _jobListState = mixedTabularList listName mempty (LstItmH 1) columnWidths widthsPerRow
         , _allJobs = []
         , _sortKey = Nothing
+        , _renderers = defJobRenderers
         }
 
 filterJobs :: Text -> [Job] -> [Job]
@@ -98,8 +128,8 @@ updateListState = do
     key <- use (sortKey . to (fmap sortBy))
     searchTerm <- use currentSearchTerm
     jobs <- use allJobs
-    selection <- use (jobListState . listSelectedL)
-    jobListState %= listReplace ((Vec.fromList . fromMaybe id key . filterJobs searchTerm) jobs) selection
+    selection <- use (jobListState . #list . listSelectedL)
+    jobListState . #list %= listReplace ((fromList . fromMaybe id key . filterJobs searchTerm) jobs) selection
 
 currentSearchTerm :: Lens' (JobQueueState n) Text
 currentSearchTerm = searchEditor . editContentsL . lens getter setter
@@ -108,7 +138,7 @@ currentSearchTerm = searchEditor . editContentsL . lens getter setter
     setter _ txt' = textZipper [txt'] (Just 1)
 
 selectedJob :: Traversal' (JobQueueState n) Job
-selectedJob = jobListState . listSelectedElementL
+selectedJob = jobListState . #list . listSelectedElementL
 
 -- | Render the search bar.
 drawSearchBar :: (Ord n, Show n) => JobQueueState n -> Widget n
@@ -118,28 +148,54 @@ drawSearchBar st =
 -- | Render the job list widget.
 drawJobList :: (Ord n, Show n) => JobQueueState n -> Widget n
 drawJobList st =
-    borderWithLabel (txt . fmt $ "SLURM Queue (" +| Vec.length (st ^. jobListState ^. listElementsL) |+ " jobs)") $
-        renderList
-            drawJobItem
-            True
+    borderWithLabel (txt . fmt $ "SLURM Queue (" +| length jobs |+ " jobs)") $
+        renderMixedTabularList
+            (st ^. renderers)
+            (LstFcs True)
             (st ^. jobListState)
+  where
+    jobs = (st ^. jobListState ^. #list ^. listElementsL)
 
--- | Render a single item in the job list.
-drawJobItem :: Bool -> Job -> Widget n
-drawJobItem selected job =
-    let style = if selected then withAttr (attrName "selected") else id
-     in style . padRight Max . vBox $
-            [ hBox
-                [ padLeft (Pad 2) . padRight Max . str . show $ job ^. jobId
-                , padRight Max . txt . T.take 12 $ job ^. name
-                , padRight Max . txt . T.take 8 $ job ^. account
-                , padRight Max . txt . T.take 10 . T.intercalate " " $ job ^. jobState
-                , padRight Max . txt . T.take 10 . showWith formatTime $ job ^. timeLimit
-                , padRight (Pad 2) . txt $ job ^. nodes
-                ]
-            ]
+columnWidths :: WidthsPerRowKind Job Widths
+columnWidths = WsPerRK $ \(AvlW total) _ ->
+    let
+        idColumn = 8
+        (otherColumns, leftover) = (total - idColumn) `quotRem` (Vec.length columnHeaderNames - 1)
+        jobCols = fmap ColW ([idColumn] <> replicate (Vec.length columnHeaderNames - 2) otherColumns <> [otherColumns + leftover])
+     in
+        Widths{jobCols}
+
+widthsPerRow :: WidthsPerRow Job Widths
+widthsPerRow = WsPerR $ \Widths{jobCols} _ -> jobCols
+
+cellRenderer :: ListFocused -> MixedCtxt -> Job -> Widget n
+cellRenderer (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
+    let
+        styleAttribute = if isFocused then withAttr (attrName "selected") else id
+        render s = styleAttribute $ padRight Max (txt s) <+> str " "
+     in
+        case ci of
+            0 -> render . show $ job ^. jobId
+            1 -> render $ job ^. name
+            2 -> render $ job ^. account
+            3 -> render . T.intercalate " " $ job ^. jobState
+            4 -> render . showWith formatTime $ job ^. timeLimit
+            5 -> render $ (nodesFor job)
+            _ -> emptyWidget
+  where
+    nodesFor job' = if T.null (job' ^. nodes) then "-" else job' ^. nodes
+columnHeaderNames :: Vector Text
+columnHeaderNames = Vec.fromList ["ID", "Name", "Account", "State", "Time", "Nodes"]
+
+columnHeaders :: MixedColHdr n Widths
+columnHeaders =
+    MixedColHdr
+        { draw = \_ (MColC (Ix ci)) -> maybe emptyWidget (padRight Max . txt) (columnHeaderNames Vec.!? ci) <=> hBorder
+        , widths = \Widths{jobCols} -> jobCols
+        , height = ColHdrH 2
+        }
 
 handleJobQueueEvent :: (Ord n, Show n) => V.Event -> EventM n (JobQueueState n) ()
-handleJobQueueEvent e@(V.EvKey V.KUp []) = zoom jobListState (handleListEvent e)
-handleJobQueueEvent e@(V.EvKey V.KDown []) = zoom jobListState (handleListEvent e)
+handleJobQueueEvent e@(V.EvKey V.KUp []) = zoom jobListState (handleMixedListEvent e)
+handleJobQueueEvent e@(V.EvKey V.KDown []) = zoom jobListState (handleMixedListEvent e)
 handleJobQueueEvent e = zoom searchEditor (handleEditorEvent (VtyEvent e)) >> updateListState
