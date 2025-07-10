@@ -15,8 +15,9 @@ Modal or split-pane detail view conditionally shown in View based on selected jo
 Msg triggered on keypress, update triggers external IO via Cmd (calls scancel)
 ** Tier 1 — Low-Hanging UX Wins
 *** TODO Automatic Release Builds
-*** TODO Log view for commands
+*** DONE Log view for commands
 Probably need an echo area
+*** TODO Properly tabulated list
 *** TODO Resubmit/clone job
 Pressing key → emit Msg → handler constructs sbatch string and spawns a Cmd
 *** TODO Export to CSV
