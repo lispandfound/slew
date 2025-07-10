@@ -11,7 +11,7 @@ module UI.JobList where
 import Brick (
     BrickEvent (VtyEvent),
     EventM,
-    Padding (Max),
+    Padding (Max, Pad),
     Widget,
     attrName,
     emptyWidget,
@@ -28,6 +28,8 @@ import Brick.Widgets.Edit (Editor, editContentsL, editor, handleEditorEvent, ren
 import Brick.Widgets.List (listElementsL, listReplace, listSelectedElementL, listSelectedL)
 import Brick.Widgets.TabularList.Mixed
 import Control.Lens (
+    At (at),
+    Ixed (ix),
     Lens',
     Traversal',
     lens,
@@ -37,16 +39,22 @@ import Control.Lens (
     (%=),
     (.=),
     (^.),
+    (^?),
  )
 import qualified Data.Text as T
 import qualified Graphics.Vty as V
 
 import Data.Text.Zipper (getText, textZipper)
+import Data.Time.Clock (DiffTime)
+import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Fmt (fmt, (+|), (|+))
+import Graphics.Vty (withStyle)
+import Graphics.Vty.Attributes (reverseVideo)
 import Model.Job (
     Job,
+    Quantity (Set),
     account,
     formatTime,
     jobId,
@@ -54,8 +62,7 @@ import Model.Job (
     name,
     nodes,
     partition,
-    showWith,
-    timeLimit,
+    startTime,
  )
 
 type JobTabularList n = MixedTabularList n Job Widths
@@ -67,7 +74,6 @@ data JobQueueState n = JobQueueState
     { _searchEditor :: Editor Text n
     , _sortKey :: Maybe (Job -> Job -> Ordering)
     , _jobListState :: JobTabularList n
-    , _renderers :: JobRenderers n
     , _allJobs :: [Job]
     }
 
@@ -83,10 +89,10 @@ colHeader =
         , widths = \Widths{jobCols} -> jobCols
         , height = ColHdrH 2
         }
-defJobRenderers :: JobRenderers n
-defJobRenderers =
+defJobRenderers :: SystemTime -> JobRenderers n
+defJobRenderers currentTime =
     MixedRenderers
-        { cell = cellRenderer -- from earlier
+        { cell = (cellRenderer currentTime) -- from earlier
         , rowHdr = Nothing
         , colHdr = Just colHeader -- optional, or Nothing
         , colHdrRowHdr = Nothing
@@ -99,7 +105,6 @@ jobList editName listName =
         , _jobListState = mixedTabularList listName mempty (LstItmH 1) columnWidths widthsPerRow
         , _allJobs = []
         , _sortKey = Nothing
-        , _renderers = defJobRenderers
         }
 
 filterJobs :: Text -> [Job] -> [Job]
@@ -146,11 +151,11 @@ drawSearchBar st =
     str "Search Jobs: " <+> renderEditor (txt . T.unlines) True (st ^. searchEditor)
 
 -- | Render the job list widget.
-drawJobList :: (Ord n, Show n) => JobQueueState n -> Widget n
-drawJobList st =
+drawJobList :: (Ord n, Show n) => SystemTime -> JobQueueState n -> Widget n
+drawJobList currentTime st =
     borderWithLabel (txt . fmt $ "SLURM Queue (" +| length jobs |+ " jobs)") $
         renderMixedTabularList
-            (st ^. renderers)
+            (defJobRenderers currentTime)
             (LstFcs True)
             (st ^. jobListState)
   where
@@ -168,22 +173,44 @@ columnWidths = WsPerRK $ \(AvlW total) _ ->
 widthsPerRow :: WidthsPerRow Job Widths
 widthsPerRow = WsPerR $ \Widths{jobCols} _ -> jobCols
 
-cellRenderer :: ListFocused -> MixedCtxt -> Job -> Widget n
-cellRenderer (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
+systemDiffTime :: SystemTime -> SystemTime -> DiffTime
+systemDiffTime (MkSystemTime s1 ns1) (MkSystemTime s2 ns2) = fromIntegral (s2 - s1) + fromIntegral (ns2 - ns1) * 1e-9
+
+cellRenderer :: SystemTime -> ListFocused -> MixedCtxt -> Job -> Widget n
+cellRenderer currentTime (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
     let
-        styleAttribute = if isFocused then withAttr (attrName "selected") else id
-        render s = styleAttribute $ padRight Max (txt s) <+> str " "
-     in
-        case ci of
-            0 -> render . show $ job ^. jobId
+     in case ci of
+            0 -> withAttr (attrName "jobId") . render . show $ job ^. jobId
             1 -> render $ job ^. name
             2 -> render $ job ^. account
-            3 -> render . T.intercalate " " $ job ^. jobState
-            4 -> render . showWith formatTime $ job ^. timeLimit
+            3 -> styleAttribute . padRight Max . foldr (\st w -> (jobStateLabel st) <+> w) emptyWidget $ job ^. jobState
+            4 ->
+                renderRunningTime
+                    (job ^. startTime)
+                    currentTime
             5 -> render $ (nodesFor job)
             _ -> emptyWidget
   where
     nodesFor job' = if T.null (job' ^. nodes) then "-" else job' ^. nodes
+    styleAttribute = if isFocused then withAttr (attrName "selected") else id
+    renderRunningTime (Set t) t'
+        | currentTime > t = (render . formatTime) (systemDiffTime t t')
+        | otherwise = render "-"
+    renderRunningTime _ _ = render "-"
+    render s = styleAttribute $ padRight Max (txt s) <+> str " "
+    stateStyles :: Map Text String
+    stateStyles =
+        fromList
+            [ ("PENDING", "jobState.PENDING")
+            , ("RUNNING", "jobState.RUNNING")
+            , ("FAILED", "jobState.FAILED")
+            , ("COMPLETED", "jobState.COMPLETED")
+            , ("CANCELLED", "jobState.CANCELLED")
+            ]
+    jobStateLabel st = case stateStyles ^? ix st of
+        Just attr | not isFocused -> withAttr (attrName attr) (padRight Max (txt st))
+        _ -> padRight (Pad 1) (txt st)
+
 columnHeaderNames :: Vector Text
 columnHeaderNames = Vec.fromList ["ID", "Name", "Account", "State", "Time", "Nodes"]
 

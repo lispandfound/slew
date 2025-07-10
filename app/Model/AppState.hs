@@ -7,6 +7,7 @@ module Model.AppState (
     Command (..),
     Category (..),
     Name (..),
+    currentTime,
     squeueChannel,
     jobQueueState,
     transient,
@@ -21,6 +22,7 @@ import Brick (EventM)
 import Brick.BChan (BChan, newBChan, writeBChan)
 import Control.Concurrent.STM.TChan (newTChanIO)
 import Control.Lens (makeLenses, use)
+import Data.Time.Clock.System (SystemTime, getSystemTime)
 import Model.Job (Job)
 import UI.JobList (JobQueueState, jobList)
 import UI.Poller (PollerState, poller)
@@ -37,7 +39,7 @@ import qualified UI.Transient as TR
 
 data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
 data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
-data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SlurmCommandSend Command | SlurmCommandReceive SlurmCommandLogEntry | SortBy Category deriving (Show)
+data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SlurmCommandSend Command | SlurmCommandReceive SlurmCommandLogEntry | SortBy Category | Tick deriving (Show)
 
 data Name = SearchEditor | JobListWidget | SlurmCommandLogView
     deriving (Eq, Ord, Show)
@@ -51,7 +53,9 @@ data AppState = AppState
     , _pollState :: PollerState
     , _scontrolLogState :: SlurmCommandLogState Name
     , _squeueChannel :: BChan ()
-    , _showLog :: Bool
+    , _currentTime :: SystemTime
+    , _showLog ::
+        Bool
     }
 
 makeLenses ''AppState
@@ -69,6 +73,7 @@ initialState = do
     tailCommandChannel <- newTChanIO
     scontrolCommandChannel <- newBChan 10
     squeueChannel' <- newBChan 10
+    currentTime' <- getSystemTime
     return $
         AppState
             { _jobQueueState = jobList SearchEditor JobListWidget
@@ -77,4 +82,5 @@ initialState = do
             , _pollState = poller tailCommandChannel 10
             , _scontrolLogState = scontrolLog SlurmCommandLogView scontrolCommandChannel
             , _showLog = False
+            , _currentTime = currentTime'
             }

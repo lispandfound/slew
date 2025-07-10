@@ -7,15 +7,15 @@ module UI.Event (
 
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, zoom)
 import Control.Lens (preuse, use, view, (%=), (.=), (^.), _Just)
+import Data.Time.Clock.System (getSystemTime)
 import qualified Graphics.Vty as V
-import UI.SlurmCommand (SlurmCommandCmd (..), sendSlurmCommandCommand)
-
 import Model.AppState (
     AppState,
     Category (..),
     Command (Cancel, Hold, Release, Resume, Suspend, Top),
     Name,
     SlewEvent (..),
+    currentTime,
     jobQueueState,
     pollState,
     scontrolLogState,
@@ -37,7 +37,7 @@ import Model.Job (
  )
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (handlePollerEvent, tailFile)
-import UI.SlurmCommand (logSlurmCommandEvent)
+import UI.SlurmCommand (SlurmCommandCmd (..), logSlurmCommandEvent, sendSlurmCommandCommand)
 import qualified UI.Transient as TR
 
 scontrolTransient :: TR.TransientState SlewEvent
@@ -122,4 +122,7 @@ handleEvent (AppEvent (SlurmCommandSend msg)) = do
     scontrolCommand Top job = TopJob [job ^. jobId]
 handleEvent (AppEvent (SlurmCommandReceive output)) = zoom scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
 handleEvent (AppEvent (PollEvent ev)) = zoom pollState (handlePollerEvent ev)
+handleEvent (AppEvent Tick) = do
+    sysTime <- liftIO getSystemTime
+    currentTime .= sysTime
 handleEvent _ = pure ()

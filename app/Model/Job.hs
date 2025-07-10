@@ -6,6 +6,7 @@
 module Model.Job (
     ExitCode,
     Job,
+    Quantity (..),
     account,
     cpus,
     endTime,
@@ -30,7 +31,7 @@ module Model.Job (
     formatTime,
 ) where
 
-import Control.Lens (makeLenses)
+import Control.Lens (makeLenses, over)
 import Data.Aeson (
     FromJSON (parseJSON),
     Options (fieldLabelModifier),
@@ -41,7 +42,7 @@ import Data.Aeson (
  )
 import Data.Aeson.Casing (snakeCase)
 import Data.Time.Clock (DiffTime)
-import Data.Time.Clock.System (SystemTime)
+import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import Fmt (padLeftF, (+|), (|+))
 
 data Quantity a = Unset | Infinite | Set a deriving (Show, Eq)
@@ -107,8 +108,21 @@ data Job = Job
 
 makeLenses ''Job
 
+normaliseDates :: Job -> Job
+normaliseDates job =
+    job
+        & over
+            startTime
+            normalise
+        & over
+            endTime
+            normalise
+  where
+    normalise (Set (MkSystemTime 0 0)) = Unset
+    normalise x = x
+
 instance FromJSON Job where
-    parseJSON = genericParseJSON snakeCaseOptions
+    parseJSON = fmap normaliseDates . genericParseJSON snakeCaseOptions
 
 -- | Format seconds to HH:MM:SS string
 formatTime :: DiffTime -> Text

@@ -19,6 +19,7 @@ import Control.Lens
 import Model.AppState (
     AppState,
     Name,
+    currentTime,
     jobQueueState,
     pollState,
     scontrolLogState,
@@ -37,7 +38,7 @@ drawApp st =
     (if st ^. showLog then [drawSlurmCommandLog (st ^. scontrolLogState)] else [])
         <> [ vBox
                 [ (drawSearchBar (st ^. jobQueueState) <=> hBorder)
-                , (drawJobList (st ^. jobQueueState) <+> maybe emptyWidget drawJobPanel (st ^? jobQueueState . selectedJob))
+                , (drawJobList (st ^. currentTime) (st ^. jobQueueState) <+> maybe emptyWidget drawJobPanel (st ^? jobQueueState . selectedJob))
                 , drawPoller (st ^. pollState)
                 , maybe emptyWidget drawTransientView (st ^. transient)
                 ]
