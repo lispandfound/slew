@@ -64,7 +64,7 @@ executable slew
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Model.SQueue Model.Job UI.Transient Model.AppState UI.View UI.Event SQueue.Poller Tail.Poller UI.Poller UI.JobPanel UI.JobList Model.SlurmCommand UI.SlurmCommand
+    other-modules: Model.SQueue Model.Job UI.Transient Model.AppState UI.View UI.Event SQueue.Poller Tail.Poller UI.Poller UI.JobPanel UI.JobList Model.SlurmCommand UI.SlurmCommand UI.Echo
 
     -- LANGUAGE extensions used by modules in this package.
     default-extensions: OverloadedStrings DeriveGeneric NoFieldSelectors DuplicateRecordFields OverloadedRecordDot OverloadedLabels

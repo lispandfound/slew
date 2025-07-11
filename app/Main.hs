@@ -43,7 +43,7 @@ import Options.Applicative (
     value,
  )
 import SQueue.Poller (squeueThread)
-import UI.Event (handleEvent)
+import UI.Event (handleEventWithEcho)
 import UI.Poller (PollerState (..), startPoller)
 import UI.SlurmCommand (SlurmCommandLogEntry (..), SlurmCommandLogState (..), startSlurmCommandListener)
 import UI.View (drawApp)
@@ -56,7 +56,7 @@ app =
     App
         { appDraw = drawApp
         , appChooseCursor = showFirstCursor
-        , appHandleEvent = handleEvent
+        , appHandleEvent = handleEventWithEcho
         , appStartEvent = pure ()
         , appAttrMap = const appAttrs
         }
