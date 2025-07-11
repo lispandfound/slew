@@ -1,37 +1,11 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module Model.Job (
-    ExitCode,
-    Job,
+    ExitCode (..),
+    Job (..),
     Quantity (..),
-    account,
-    cpus,
-    endTime,
-    exitCode,
-    jobId,
-    jobState,
-    makeLenses,
-    memoryPerNode,
-    nodes,
-    name,
-    nodeCount,
-    partition,
-    returnCode,
-    standardError,
-    standardOutput,
-    startTime,
-    stateReason,
-    status,
-    timeLimit,
-    userName,
     showWith,
     formatTime,
 ) where
 
-import Control.Lens (makeLenses, over)
 import Data.Aeson (
     FromJSON (parseJSON),
     Options (fieldLabelModifier),
@@ -44,8 +18,10 @@ import Data.Aeson.Casing (snakeCase)
 import Data.Time.Clock (DiffTime)
 import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import Fmt (padLeftF, (+|), (|+))
+import Optics.Label ()
+import Optics.Setter (over)
 
-data Quantity a = Unset | Infinite | Set a deriving (Show, Eq)
+data Quantity a = Unset | Infinite | Set a deriving (Show, Eq, Generic)
 
 instance (Ord a) => Ord (Quantity a) where
     compare Unset Unset = EQ
@@ -62,7 +38,7 @@ showWith _ Infinite = "infinite"
 showWith f (Set x) = f x
 
 snakeCaseOptions :: Options
-snakeCaseOptions = defaultOptions{fieldLabelModifier = (snakeCase . fromMaybe mempty . viaNonEmpty tail)}
+snakeCaseOptions = defaultOptions{fieldLabelModifier = snakeCase}
 
 instance (FromJSON a) => FromJSON (Quantity a) where
     parseJSON = withObject "Quantity" $ \obj -> do
@@ -75,47 +51,43 @@ instance (FromJSON a) => FromJSON (Quantity a) where
             (True, False, x) -> pure (Set x)
 
 data ExitCode = ExitCode
-    { _status :: [Text]
-    , _returnCode :: Quantity Int
+    { status :: [Text]
+    , returnCode :: Quantity Int
     }
     deriving (Show, Generic)
-
-makeLenses ''ExitCode
 
 instance FromJSON ExitCode where
     parseJSON = genericParseJSON snakeCaseOptions
 
 data Job = Job
-    { _account :: Text
-    , _cpus :: Quantity Int
-    , _endTime :: Quantity SystemTime
-    , _exitCode :: ExitCode
-    , _jobId :: Int
-    , _jobState :: [Text]
-    , _memoryPerNode :: Quantity Int
-    , _name :: Text
-    , _nodeCount :: Quantity Int
-    , _standardOutput :: FilePath
-    , _standardError :: FilePath
-    , _nodes :: Text
-    , _partition :: Text
-    , _startTime :: Quantity SystemTime
-    , _stateReason :: Text
-    , _timeLimit :: Quantity DiffTime
-    , _userName :: Text
+    { account :: Text
+    , cpus :: Quantity Int
+    , endTime :: Quantity SystemTime
+    , exitCode :: ExitCode
+    , jobId :: Int
+    , jobState :: [Text]
+    , memoryPerNode :: Quantity Int
+    , name :: Text
+    , nodeCount :: Quantity Int
+    , standardOutput :: FilePath
+    , standardError :: FilePath
+    , nodes :: Text
+    , partition :: Text
+    , startTime :: Quantity SystemTime
+    , stateReason :: Text
+    , timeLimit :: Quantity DiffTime
+    , userName :: Text
     }
     deriving (Show, Generic)
-
-makeLenses ''Job
 
 normaliseDates :: Job -> Job
 normaliseDates job =
     job
         & over
-            startTime
+            #startTime
             normalise
         & over
-            endTime
+            #endTime
             normalise
   where
     normalise (Set (MkSystemTime 0 0)) = Unset

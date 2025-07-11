@@ -1,7 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
-module UI.Poller (PollerState, PollEvent (..), drawPoller, poller, handlePollerEvent, currentFile, tailFile, startPoller, commandChannel, buffer, maxLines) where
+module UI.Poller (PollerState (..), PollEvent (..), drawPoller, poller, handlePollerEvent, tailFile, startPoller) where
 
 import Brick (
     EventM,
@@ -14,30 +11,32 @@ import Brick (
  )
 import Brick.Widgets.Border (borderWithLabel)
 import Control.Concurrent.STM.TChan (TChan, writeTChan)
-import Control.Lens (makeLenses, use, (.=), (^.))
 import qualified Data.Sequence as Seq
+import Optics.Label ()
+import Optics.Operators ((^.))
+import Optics.State (use)
+import Optics.State.Operators ((.=))
 
 import qualified Data.Text as T
 import Tail.Poller (Command (..), createPoller)
 
 data PollerState = PollerState
-    { _commandChannel :: TChan Command
-    , _buffer :: Either String (Seq Text)
-    , _maxLines :: Int
-    , _currentFile :: Maybe Text
+    { commandChannel :: TChan Command
+    , buffer :: Either String (Seq Text)
+    , maxLines :: Int
+    , currentFile :: Maybe Text
     }
-
-makeLenses ''PollerState
+    deriving (Generic)
 
 data PollEvent = PollError String | PollUpdate (Seq Text) deriving (Show)
 
 poller :: TChan Command -> Int -> PollerState
 poller chan maxLines' =
     PollerState
-        { _commandChannel = chan
-        , _buffer = Right mempty
-        , _maxLines = maxLines'
-        , _currentFile = Nothing
+        { commandChannel = chan
+        , buffer = Right mempty
+        , maxLines = maxLines'
+        , currentFile = Nothing
         }
 
 takeR :: Int -> Seq Text -> Seq Text
@@ -52,25 +51,25 @@ startPoller chan f = createPoller chan handle (pure ())
 
 tailFile :: FilePath -> EventM n PollerState ()
 tailFile fp = do
-    chan <- use commandChannel
+    chan <- use #commandChannel
     liftIO . atomically $ writeTChan chan (Tail fp)
-    buffer .= Right mempty
-    currentFile .= Just (toText fp)
+    #buffer .= Right mempty
+    #currentFile .= Just (toText fp)
 
 handlePollerEvent :: PollEvent -> EventM n PollerState ()
-handlePollerEvent (PollError err) = buffer .= (Left err)
+handlePollerEvent (PollError err) = #buffer .= (Left err)
 handlePollerEvent (PollUpdate buf) = do
-    currentBuffer <- use buffer
-    allowedLength <- use maxLines
-    buffer .= Right (takeR allowedLength (fromRight mempty currentBuffer <> buf))
+    currentBuffer <- use #buffer
+    allowedLength <- use #maxLines
+    #buffer .= Right (takeR allowedLength (fromRight mempty currentBuffer <> buf))
 
 pollTextWidget :: PollerState -> Widget n
-pollTextWidget (PollerState{_buffer = (Right lns)}) = txt . foldMap (<> "\n") $ lns
-pollTextWidget (PollerState{_buffer = (Left err)}) = str err
+pollTextWidget (PollerState{buffer = (Right lns)}) = txt . foldMap (<> "\n") $ lns
+pollTextWidget (PollerState{buffer = (Left err)}) = str err
 
 drawPoller :: PollerState -> Widget n
 drawPoller st =
-    case st ^. currentFile of
+    case st ^. #currentFile of
         Nothing -> emptyWidget
         Just fp ->
             borderWithLabel (txt fp) . padRight Max $ pollTextWidget st

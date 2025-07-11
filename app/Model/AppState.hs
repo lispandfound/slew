@@ -1,29 +1,17 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module Model.AppState (
     AppState (..),
     SlewEvent (..),
     Command (..),
     Category (..),
     Name (..),
-    currentTime,
-    squeueChannel,
-    jobQueueState,
-    transient,
-    pollState,
     initialState,
-    scontrolLogState,
-    showLog,
-    triggerSqueue,
 ) where
 
-import Brick (EventM)
-import Brick.BChan (BChan, newBChan, writeBChan)
+import Brick.BChan (BChan, newBChan)
 import Control.Concurrent.STM.TChan (newTChanIO)
-import Control.Lens (makeLenses, use)
 import Data.Time.Clock.System (SystemTime, getSystemTime)
 import Model.Job (Job)
+import Optics.Label ()
 import UI.JobList (JobQueueState, jobList)
 import UI.Poller (PollerState, poller)
 import qualified UI.Poller as UP
@@ -48,25 +36,19 @@ data Name = SearchEditor | JobListWidget | SlurmCommandLogView
 -- App State
 
 data AppState = AppState
-    { _jobQueueState :: JobQueueState Name
-    , _transient :: Maybe (TR.TransientState SlewEvent)
-    , _pollState :: PollerState
-    , _scontrolLogState :: SlurmCommandLogState Name
-    , _squeueChannel :: BChan ()
-    , _currentTime :: SystemTime
-    , _showLog ::
+    { jobQueueState :: JobQueueState Name
+    , transient :: Maybe (TR.TransientState SlewEvent)
+    , pollState :: PollerState
+    , scontrolLogState :: SlurmCommandLogState Name
+    , squeueChannel :: BChan ()
+    , currentTime :: SystemTime
+    , showLog ::
         Bool
     }
-
-makeLenses ''AppState
+    deriving (Generic)
 
 ------------------------------------------------------------
 -- Initial State
-
-triggerSqueue :: EventM n AppState ()
-triggerSqueue = do
-    ch <- use squeueChannel
-    liftIO (writeBChan ch ())
 
 initialState :: IO AppState
 initialState = do
@@ -76,11 +58,11 @@ initialState = do
     currentTime' <- getSystemTime
     return $
         AppState
-            { _jobQueueState = jobList SearchEditor JobListWidget
-            , _transient = Nothing
-            , _squeueChannel = squeueChannel'
-            , _pollState = poller tailCommandChannel 10
-            , _scontrolLogState = scontrolLog SlurmCommandLogView scontrolCommandChannel
-            , _showLog = False
-            , _currentTime = currentTime'
+            { jobQueueState = jobList SearchEditor JobListWidget
+            , transient = Nothing
+            , squeueChannel = squeueChannel'
+            , pollState = poller tailCommandChannel 10
+            , scontrolLogState = scontrolLog SlurmCommandLogView scontrolCommandChannel
+            , showLog = False
+            , currentTime = currentTime'
             }

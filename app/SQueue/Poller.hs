@@ -7,13 +7,17 @@ import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (race)
 import Data.Aeson (eitherDecode)
 import Model.Job (Job)
-import Model.SQueue (jobs)
+import Model.SQueue (SlurmResponse (..))
+import Optics.Getter (view)
 import System.Process (readCreateProcess, shell)
 
 pollJobs :: IO (Either String [Job])
 pollJobs = do
     squeueFile <- readCreateProcess (shell "squeue --json") ""
-    return . second jobs . eitherDecode . encodeUtf8 $ squeueFile
+    return . second (view #jobs) . parse . encodeUtf8 $ squeueFile
+  where
+    parse :: LByteString -> Either String SlurmResponse
+    parse = eitherDecode
 
 squeueThread :: Int -> BChan () -> ([Job] -> IO ()) -> IO void
 squeueThread pollingInterval promptChannel callback = forever $ do
