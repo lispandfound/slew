@@ -26,13 +26,13 @@ incantation again.
 
 There are two options to install slew:
 
-1. Compile from source after first installing
+- Compile from source after first installing
 #+BEGIN_SRC bash
   $ git clone github.com/lispandfound/slew
   $ cabal install
   $ slew
 #+END_SRC
-2. Grab the [[https://github.com/lispandfound/slew/releases][latest release]] as a statically compiled binary suitable for constrained HPC use.
+- Grab the [[https://github.com/lispandfound/slew/releases][latest release]] as a statically compiled binary suitable for constrained HPC use.
 
 * Usage
 
