@@ -1,44 +1,35 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
 module UI.Event (
     handleEvent,
 ) where
 
-import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, zoom)
-import Control.Lens (preuse, use, view, (%=), (.=), (^.), _Just)
+import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, zoom)
+import Brick.BChan (writeBChan)
 import Data.Time.Clock.System (getSystemTime)
 import qualified Graphics.Vty as V
 import Model.AppState (
-    AppState,
+    AppState (..),
     Category (..),
     Command (Cancel, Hold, Release, Resume, Suspend, Top),
     Name,
     SlewEvent (..),
-    currentTime,
-    jobQueueState,
-    pollState,
-    scontrolLogState,
-    showLog,
-    transient,
-    triggerSqueue,
  )
 import Model.Job (
-    Job,
-    account,
-    cpus,
-    endTime,
-    jobId,
-    memoryPerNode,
-    name,
-    standardOutput,
-    startTime,
-    userName,
+    Job (..),
  )
+import Optics.Getter (view)
+import Optics.Operators ((^.))
+import Optics.State (preuse, use)
+import Optics.State.Operators ((%=), (.=))
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (handlePollerEvent, tailFile)
 import UI.SlurmCommand (SlurmCommandCmd (..), logSlurmCommandEvent, sendSlurmCommandCommand)
+import UI.Transient (TransientMsg)
 import qualified UI.Transient as TR
+
+triggerSqueue :: EventM n AppState ()
+triggerSqueue = do
+    ch <- use #squeueChannel
+    liftIO (writeBChan ch ())
 
 scontrolTransient :: TR.TransientState SlewEvent
 scontrolTransient =
@@ -71,58 +62,72 @@ sortTransient =
             ]
 
 sortListByCat :: Category -> Job -> Job -> Ordering
-sortListByCat Account = comparing (view account)
-sortListByCat CPUs = comparing (view cpus)
-sortListByCat StartTime = comparing (view startTime)
-sortListByCat EndTime = comparing (view endTime)
-sortListByCat JobName = comparing (view name)
-sortListByCat UserName = comparing (view userName)
-sortListByCat Memory = comparing (view memoryPerNode)
+sortListByCat Account = comparing (view #account)
+sortListByCat CPUs = comparing (view #cpus)
+sortListByCat StartTime = comparing (view #startTime)
+sortListByCat EndTime = comparing (view #endTime)
+sortListByCat JobName = comparing (view #name)
+sortListByCat UserName = comparing (view #userName)
+sortListByCat Memory = comparing (view #memoryPerNode)
+
+zoomTransient :: V.Event -> EventM Name AppState (First (TransientMsg SlewEvent))
+zoomTransient e = do
+    trMay <- use #transient
+    case trMay of
+        Just tr -> do
+            (tr', msg) <- nestEventM tr (TR.handleTransientEvent e)
+            #transient .= Just tr'
+            pure msg
+        Nothing -> pure mempty
 
 -- | Main event handler
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
-handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = showLog %= not
+handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = #showLog %= not
 handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
-    msg <- getFirst <$> zoom (transient . _Just) (TR.handleTransientEvent e)
-    showingLog <- use showLog
+    msg <- getFirst <$> (zoomTransient e)
+    showingLog <- use #showLog
+
     case (showingLog, msg) of
-        (True, _) -> showLog .= False
-        (False, Just TR.Close) -> transient .= Nothing
+        (True, _) -> #showLog .= False
+        (False, Just TR.Close) -> #transient .= Nothing
         _ -> halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
-    transient .= Just scontrolTransient -- could parameterise this
+    #transient .= Just scontrolTransient -- could parameterise this
 handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = do
-    curFile <- use (jobQueueState . selectedJob . standardOutput)
-    zoom pollState (tailFile curFile)
+    curJob <- selectedJob <$> use #jobQueueState
+    case curJob of
+        Just job -> zoom #pollState (tailFile (job ^. #standardOutput))
+        Nothing -> pure ()
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
-    transient .= Just sortTransient -- could parameterise this
+    #transient .= Just sortTransient -- could parameterise this
 handleEvent (VtyEvent e) = do
-    msg <- getFirst <$> zoom (transient . _Just) (TR.handleTransientEvent e)
+    msg <- getFirst <$> (zoomTransient e)
     case msg of
-        Just TR.Close -> transient .= Nothing
-        Just (TR.Msg msg') -> transient .= Nothing >> handleEvent (AppEvent msg')
+        Just TR.Close -> #transient .= Nothing
+        Just (TR.Msg msg') -> #transient .= Nothing >> handleEvent (AppEvent msg')
         Just TR.Next -> pure ()
-        _ -> zoom jobQueueState (handleJobQueueEvent e)
-handleEvent (AppEvent (SQueueStatus jobs)) = zoom jobQueueState (updateJobList jobs)
-handleEvent (AppEvent (SortBy category)) = zoom jobQueueState (updateSortKey (sortListByCat category))
+        _ -> zoom #jobQueueState (handleJobQueueEvent e)
+handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs)
+handleEvent (AppEvent (SortBy category)) = zoom #jobQueueState (updateSortKey (sortListByCat category))
 handleEvent (AppEvent (SlurmCommandSend msg)) = do
-    job <- preuse (jobQueueState . selectedJob)
-    case job of
+    job <- fmap selectedJob <$> preuse #jobQueueState
+    case join job of
         Just job' -> do
             let cmd = scontrolCommand msg job'
-            zoom scontrolLogState (sendSlurmCommandCommand cmd)
+            zoom #scontrolLogState (sendSlurmCommandCommand cmd)
         Nothing -> pure ()
   where
-    scontrolCommand Cancel job = CancelJob [job ^. jobId]
-    scontrolCommand Suspend job = SuspendJob [job ^. jobId]
-    scontrolCommand Resume job = ResumeJob [job ^. jobId]
-    scontrolCommand Hold job = HoldJob [job ^. jobId]
-    scontrolCommand Release job = ReleaseJob [job ^. jobId]
-    scontrolCommand Top job = TopJob [job ^. jobId]
-handleEvent (AppEvent (SlurmCommandReceive output)) = zoom scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
-handleEvent (AppEvent (PollEvent ev)) = zoom pollState (handlePollerEvent ev)
+    scontrolCommand :: Command -> Job -> SlurmCommandCmd
+    scontrolCommand Cancel job = CancelJob [job ^. #jobId]
+    scontrolCommand Suspend job = SuspendJob [job ^. #jobId]
+    scontrolCommand Resume job = ResumeJob [job ^. #jobId]
+    scontrolCommand Hold job = HoldJob [job ^. #jobId]
+    scontrolCommand Release job = ReleaseJob [job ^. #jobId]
+    scontrolCommand Top job = TopJob [job ^. #jobId]
+handleEvent (AppEvent (SlurmCommandReceive output)) = zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
+handleEvent (AppEvent (PollEvent ev)) = zoom #pollState (handlePollerEvent ev)
 handleEvent (AppEvent Tick) = do
     sysTime <- liftIO getSystemTime
-    currentTime .= sysTime
+    #currentTime .= sysTime
 handleEvent _ = pure ()

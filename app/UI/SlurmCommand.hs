@@ -1,8 +1,4 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
-module UI.SlurmCommand (startSlurmCommandListener, scontrolLog, drawSlurmCommandLog, SlurmCommandCmd (..), SlurmCommandLogState, log, name, SlurmCommandLogEntry (..), result, command, chan, sendSlurmCommandCommand, logSlurmCommandEvent) where
+module UI.SlurmCommand (startSlurmCommandListener, scontrolLog, drawSlurmCommandLog, SlurmCommandCmd (..), SlurmCommandLogState (..), SlurmCommandLogEntry (..), sendSlurmCommandCommand, logSlurmCommandEvent) where
 
 import Brick (
     EventM,
@@ -24,7 +20,6 @@ import Brick (
 import Brick.BChan (BChan, readBChan, writeBChan)
 import Brick.Widgets.Border (borderWithLabel)
 import Brick.Widgets.Center (centerLayer)
-import Control.Lens (makeLenses, use, (%=), (^.))
 import Model.SlurmCommand (
     SlurmCommandError (SlurmCommandError, exitCode, stderr),
     SlurmCommandOutput (SlurmCommandOutput, stdout),
@@ -41,6 +36,10 @@ import Model.SlurmCommand (
     waitJob,
     writeBatchScript,
  )
+import Optics.Label ()
+import Optics.Operators ((^.))
+import Optics.State (use)
+import Optics.State.Operators ((%=))
 
 data SlurmCommandCmd
     = CancelJob [Int]
@@ -78,26 +77,24 @@ startSlurmCommandListener chan callback = forever $ do
     callback cmd output
 
 data SlurmCommandLogEntry = SlurmCommandLogEntry
-    { _command :: SlurmCommandCmd
-    , _result :: Either SlurmCommandError SlurmCommandOutput
+    { command :: SlurmCommandCmd
+    , result :: Either SlurmCommandError SlurmCommandOutput
     }
-    deriving (Show)
-
-makeLenses ''SlurmCommandLogEntry
+    deriving (Show, Generic)
 
 data SlurmCommandLogState n = SlurmCommandLogState
-    { _log :: [SlurmCommandLogEntry]
-    , _name :: n
-    , _chan :: BChan SlurmCommandCmd
+    { log :: [SlurmCommandLogEntry]
+    , name :: n
+    , chan :: BChan SlurmCommandCmd
     }
-makeLenses ''SlurmCommandLogState
+    deriving (Generic)
 
 scontrolLog :: n -> BChan SlurmCommandCmd -> SlurmCommandLogState n
 scontrolLog name' chan' =
     SlurmCommandLogState
-        { _log = mempty
-        , _name = name'
-        , _chan = chan'
+        { log = mempty
+        , name = name'
+        , chan = chan'
         }
 
 formatShellCommand :: SlurmCommandCmd -> Widget n
@@ -125,7 +122,7 @@ formatShellCommand cmd =
                 (map (\i -> padRight (Pad 1) $ withAttr (attrName "jobId") (txt . show $ i)) ids)
 
 drawEntry :: SlurmCommandLogEntry -> Widget n
-drawEntry (SlurmCommandLogEntry{_command = com, _result = res}) = vBox [commandLine, commandOutput]
+drawEntry (SlurmCommandLogEntry{command = com, result = res}) = vBox [commandLine, commandOutput]
   where
     commandLine = hBox [padRight (Pad 4) exitStatus, shellCommand]
     exitStatus = case res of
@@ -137,12 +134,12 @@ drawEntry (SlurmCommandLogEntry{_command = com, _result = res}) = vBox [commandL
     shellCommand = formatShellCommand com
 
 drawSlurmCommandLog :: (Ord n, Show n) => SlurmCommandLogState n -> Widget n
-drawSlurmCommandLog st = centerLayer $ borderWithLabel (txt "Slurm Command Log") $ (viewport (st ^. name) Vertical . vBox $ map drawEntry (reverse $ st ^. log))
+drawSlurmCommandLog st = centerLayer $ borderWithLabel (txt "Slurm Command Log") $ (viewport (st ^. #name) Vertical . vBox $ map drawEntry (reverse $ st ^. #log))
 
 logSlurmCommandEvent :: SlurmCommandLogEntry -> EventM n (SlurmCommandLogState n) ()
-logSlurmCommandEvent output = log %= (output :)
+logSlurmCommandEvent output = #log %= (output :)
 
 -- NOTE: viewportScrolling is handled by name in brick so this occurs farther up the call chain in Event.hs
 
 sendSlurmCommandCommand :: SlurmCommandCmd -> EventM n (SlurmCommandLogState n) ()
-sendSlurmCommandCommand cmd = use chan >>= (\c -> liftIO $ writeBChan c cmd)
+sendSlurmCommandCommand cmd = use #chan >>= (\c -> liftIO $ writeBChan c cmd)

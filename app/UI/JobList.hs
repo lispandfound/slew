@@ -24,43 +24,48 @@ import Brick (
     (<=>),
  )
 import Brick.Widgets.Border (borderWithLabel, hBorder)
-import Brick.Widgets.Edit (Editor, editContentsL, editor, handleEditorEvent, renderEditor)
-import Brick.Widgets.List (listElementsL, listReplace, listSelectedElementL, listSelectedL)
-import Brick.Widgets.TabularList.Mixed
-import Control.Lens (
-    Ixed (ix),
-    Lens',
-    Traversal',
-    lens,
-    makeLenses,
-    to,
-    use,
-    (%=),
-    (.=),
-    (^.),
-    (^?),
+import Brick.Widgets.Edit (Editor (editContents), editor, handleEditorEvent, renderEditor)
+import Brick.Widgets.List (GenericList (listElements), listReplace, listSelected, listSelectedElement)
+import Brick.Widgets.TabularList.Mixed (
+    AvailWidth (AvlW),
+    ColHdrHeight (ColHdrH),
+    ColWidth (..),
+    Index (Ix),
+    ListFocused (..),
+    ListItemHeight (LstItmH),
+    MixedColCtxt (MColC),
+    MixedColHdr (..),
+    MixedCtxt (MxdCtxt),
+    MixedRenderers (..),
+    MixedTabularList (list),
+    WidthsPerRow (..),
+    WidthsPerRowKind (..),
+    handleMixedListEvent,
+    mixedTabularList,
+    renderMixedTabularList,
  )
+
 import qualified Data.Text as T
 import qualified Graphics.Vty as V
+import Optics.At (ix)
+import Optics.Label ()
+import Optics.Operators ((^.), (^?))
+import Optics.State (use)
+import Optics.State.Operators ((%=), (.=))
 
-import Data.Text.Zipper (getText, textZipper)
+import Data.Text.Zipper (getText)
 import Data.Time.Clock (DiffTime)
 import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import Data.Vector (Vector)
 import qualified Data.Vector as Vec
 import Fmt (fmt, (+|), (|+))
 import Model.Job (
-    Job,
+    Job (..),
     Quantity (Set),
-    account,
     formatTime,
-    jobId,
-    jobState,
-    name,
-    nodes,
-    partition,
-    startTime,
  )
+import Optics.Core ((%))
+import Optics.Getter (view)
 
 type JobTabularList n = MixedTabularList n Job Widths
 type JobRenderers n = MixedRenderers n Job Widths
@@ -68,13 +73,12 @@ type JobRenderers n = MixedRenderers n Job Widths
 data Widths = Widths {jobCols :: [ColWidth]} deriving (Generic)
 
 data JobQueueState n = JobQueueState
-    { _searchEditor :: Editor Text n
-    , _sortKey :: Maybe (Job -> Job -> Ordering)
-    , _jobListState :: JobTabularList n
-    , _allJobs :: [Job]
+    { searchEditor :: Editor Text n
+    , sortKey :: Maybe (Job -> Job -> Ordering)
+    , jobListState :: JobTabularList n
+    , allJobs :: [Job]
     }
-
-makeLenses ''JobQueueState
+    deriving (Generic)
 
 colHeader :: MixedColHdr n Widths
 colHeader =
@@ -98,54 +102,55 @@ defJobRenderers currentTime =
 jobList :: n -> n -> JobQueueState n
 jobList editName listName =
     JobQueueState
-        { _searchEditor = editor editName (Just 1) ""
-        , _jobListState = mixedTabularList listName mempty (LstItmH 1) columnWidths widthsPerRow
-        , _allJobs = []
-        , _sortKey = Nothing
+        { searchEditor = editor editName (Just 1) ""
+        , jobListState = mixedTabularList listName mempty (LstItmH 1) columnWidths widthsPerRow
+        , allJobs = []
+        , sortKey = Nothing
         }
 
 filterJobs :: Text -> [Job] -> [Job]
 filterJobs "" = id
 filterJobs searchTerm =
     let searchLower = T.toLower searchTerm
+        matches :: Job -> Bool
         matches job =
             let fields =
-                    [ T.pack (show $ job ^. jobId)
-                    , job ^. name
-                    , job ^. account
+                    [ T.pack (show $ job ^. #jobId)
+                    , job ^. #name
+                    , job ^. #account
                     ]
-                        <> job ^. jobState
-                        <> [job ^. partition]
+                        <> job ^. #jobState
+                        <> [job ^. #partition]
              in any (searchLower `T.isInfixOf`) $ map T.toLower fields
      in filter matches
 
 updateSortKey :: (Ord n, Show n) => (Job -> Job -> Ordering) -> EventM n (JobQueueState n) ()
-updateSortKey key = sortKey .= Just key >> updateListState
+updateSortKey key = #sortKey .= Just key >> updateListState
 
 updateJobList :: (Ord n, Show n) => [Job] -> EventM n (JobQueueState n) ()
-updateJobList jobs = allJobs .= jobs >> updateListState
+updateJobList jobs = #allJobs .= jobs >> updateListState
 
 updateListState :: (Ord n, Show n) => EventM n (JobQueueState n) ()
 updateListState = do
-    key <- use (sortKey . to (fmap sortBy))
-    searchTerm <- use currentSearchTerm
-    jobs <- use allJobs
-    selection <- use (jobListState . #list . listSelectedL)
-    jobListState . #list %= listReplace ((fromList . fromMaybe id key . filterJobs searchTerm) jobs) selection
-
-currentSearchTerm :: Lens' (JobQueueState n) Text
-currentSearchTerm = searchEditor . editContentsL . lens getter setter
+    key <- (fmap sortBy) <$> use #sortKey
+    searchTerm <- gets currentSearchTerm
+    jobs <- use #allJobs
+    selection <- listSelected <$> use (#jobListState % #list)
+    #jobListState % #list %= listReplace (filterAndSort searchTerm key jobs) selection
   where
-    getter = mconcat . getText
-    setter _ txt' = textZipper [txt'] (Just 1)
+    filterAndSort :: Text -> (Maybe ([Job] -> [Job])) -> [Job] -> Seq Job
+    filterAndSort searchTerm key = fromList . fromMaybe id key . filterJobs searchTerm
 
-selectedJob :: Traversal' (JobQueueState n) Job
-selectedJob = jobListState . #list . listSelectedElementL
+currentSearchTerm :: JobQueueState n -> Text
+currentSearchTerm = mconcat . getText . editContents . view (#searchEditor)
+
+selectedJob :: JobQueueState n -> Maybe Job
+selectedJob = fmap snd . listSelectedElement . view (#jobListState % #list)
 
 -- | Render the search bar.
 drawSearchBar :: (Ord n, Show n) => JobQueueState n -> Widget n
 drawSearchBar st =
-    str "Search Jobs: " <+> renderEditor (txt . T.unlines) True (st ^. searchEditor)
+    str "Search Jobs: " <+> renderEditor (txt . T.unlines) True (st ^. #searchEditor)
 
 -- | Render the job list widget.
 drawJobList :: (Ord n, Show n) => SystemTime -> JobQueueState n -> Widget n
@@ -154,9 +159,9 @@ drawJobList currentTime st =
         renderMixedTabularList
             (defJobRenderers currentTime)
             (LstFcs True)
-            (st ^. jobListState)
+            (st ^. #jobListState)
   where
-    jobs = (st ^. jobListState ^. #list ^. listElementsL)
+    jobs = listElements (st ^. #jobListState ^. #list)
 
 columnWidths :: WidthsPerRowKind Job Widths
 columnWidths = WsPerRK $ \(AvlW total) _ ->
@@ -177,18 +182,19 @@ cellRenderer :: SystemTime -> ListFocused -> MixedCtxt -> Job -> Widget n
 cellRenderer currentTime (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
     let
      in case ci of
-            0 -> withAttr (attrName "jobId") . render . show $ job ^. jobId
-            1 -> render $ job ^. name
-            2 -> render $ job ^. account
-            3 -> styleAttribute . padRight Max . foldr (\st w -> (jobStateLabel st) <+> w) emptyWidget $ job ^. jobState
+            0 -> withAttr (attrName "jobId") . render . show $ job ^. #jobId
+            1 -> render $ job ^. #name
+            2 -> render $ job ^. #account
+            3 -> styleAttribute . padRight Max . foldr (\st w -> (jobStateLabel st) <+> w) emptyWidget $ job ^. #jobState
             4 ->
                 renderRunningTime
-                    (job ^. startTime)
+                    (job ^. #startTime)
                     currentTime
             5 -> render $ (nodesFor job)
             _ -> emptyWidget
   where
-    nodesFor job' = if T.null (job' ^. nodes) then "-" else job' ^. nodes
+    nodesFor :: Job -> Text
+    nodesFor job' = if T.null (job' ^. #nodes) then "-" else job' ^. #nodes
     styleAttribute = if isFocused then withAttr (attrName "selected") else id
     renderRunningTime (Set t) t'
         | currentTime > t = (render . formatTime) (systemDiffTime t t')
@@ -220,6 +226,6 @@ columnHeaders =
         }
 
 handleJobQueueEvent :: (Ord n, Show n) => V.Event -> EventM n (JobQueueState n) ()
-handleJobQueueEvent e@(V.EvKey V.KUp []) = zoom jobListState (handleMixedListEvent e)
-handleJobQueueEvent e@(V.EvKey V.KDown []) = zoom jobListState (handleMixedListEvent e)
-handleJobQueueEvent e = zoom searchEditor (handleEditorEvent (VtyEvent e)) >> updateListState
+handleJobQueueEvent e@(V.EvKey V.KUp []) = zoom #jobListState (handleMixedListEvent e)
+handleJobQueueEvent e@(V.EvKey V.KDown []) = zoom #jobListState (handleMixedListEvent e)
+handleJobQueueEvent e = zoom #searchEditor (handleEditorEvent (VtyEvent e)) >> updateListState

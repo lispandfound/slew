@@ -1,14 +1,10 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
-
-module Model.SQueue where
+module Model.SQueue (SlurmResponse (..), Meta (..), Plugin (..), SlurmInfo (..), SlurmVersion (..)) where
 
 import Data.Aeson (FromJSON (parseJSON), genericParseJSON)
 import Data.Aeson.Casing (aesonPrefix)
 import Data.Char (toLower)
 import Model.Job (Job)
+import Optics.Label ()
 
 -- | Main response structure
 data SlurmResponse = SlurmResponse
@@ -16,7 +12,9 @@ data SlurmResponse = SlurmResponse
     , errors :: [Text]
     , jobs :: [Job]
     }
-    deriving (Show, Generic, FromJSON)
+    deriving (Show, Generic)
+
+instance FromJSON SlurmResponse
 
 -- | Meta information about the response
 data Meta = Meta

@@ -15,19 +15,16 @@ import Brick (
 import qualified Brick.BChan as BC
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (withAsync)
-import Control.Lens ((^.))
 import qualified Graphics.Vty as V
 import Graphics.Vty.Config (defaultConfig)
 import Graphics.Vty.CrossPlatform (mkVty)
 import Model.AppState (
-    AppState,
+    AppState (..),
     Name,
     SlewEvent (PollEvent, SQueueStatus, SlurmCommandReceive, Tick),
     initialState,
-    pollState,
-    scontrolLogState,
-    squeueChannel,
  )
+import Optics.Operators ((^.))
 import Options.Applicative (
     Parser,
     ParserInfo,
@@ -47,8 +44,8 @@ import Options.Applicative (
  )
 import SQueue.Poller (squeueThread)
 import UI.Event (handleEvent)
-import UI.Poller (commandChannel, startPoller)
-import UI.SlurmCommand (SlurmCommandLogEntry (..), chan, startSlurmCommandListener)
+import UI.Poller (PollerState (..), startPoller)
+import UI.SlurmCommand (SlurmCommandLogEntry (..), SlurmCommandLogState (..), startSlurmCommandListener)
 import UI.View (drawApp)
 
 ------------------------------------------------------------
@@ -90,6 +87,7 @@ appAttrs =
 
 data Options = Options
     {pollInterval :: Int}
+    deriving (Generic)
 
 options :: Parser Options
 options = Options <$> (option auto (long "interval" <> short 'i' <> help "Polling interval for squeue commands. Keep short to keep your admins happy. Does not affect output viewing." <> showDefault <> value 30 <> metavar "TIME (s)"))
@@ -106,9 +104,9 @@ main = do
     eventChannel <- BC.newBChan 50
     opts <- execParser cli
     withAsync (tickThread (BC.writeBChan eventChannel Tick)) $ \_ ->
-        withAsync (squeueThread (pollInterval opts) (is ^. squeueChannel) (BC.writeBChan eventChannel . SQueueStatus)) $ \_ ->
-            withAsync (startPoller (is ^. pollState ^. commandChannel) (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
-                withAsync (startSlurmCommandListener (is ^. scontrolLogState ^. chan) (\cmd output -> BC.writeBChan eventChannel (SlurmCommandReceive (SlurmCommandLogEntry cmd output)))) $ \_ -> do
+        withAsync (squeueThread (opts ^. #pollInterval) (is ^. #squeueChannel) (BC.writeBChan eventChannel . SQueueStatus)) $ \_ ->
+            withAsync (startPoller (is ^. #pollState ^. #commandChannel) (BC.writeBChan eventChannel . PollEvent)) $ \_ -> do
+                withAsync (startSlurmCommandListener (is ^. #scontrolLogState ^. #chan) (\cmd output -> BC.writeBChan eventChannel (SlurmCommandReceive (SlurmCommandLogEntry cmd output)))) $ \_ -> do
                     let buildVty = mkVty defaultConfig
 
                     initialVty <- buildVty
