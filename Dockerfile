@@ -17,12 +17,3 @@ RUN . /root/.ghcup/env && \
     ghcup set ghc 9.10.2 && \
     ghcup install cabal latest && \
     ghcup set cabal latest
-
-# Create a working directory where source will be mounted
-WORKDIR /mnt
-
-# Default build command (override with docker run args)
-CMD cabal update && \
-    cabal install --enable-executable-static --enable-executable-stripping \
-      --installdir=out --overwrite-policy=always --install-method=copy && \
-    file out/*

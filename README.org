@@ -1,0 +1,45 @@
+#+TITLE: Slew - A TUI for Slurm
+
+Slew is [[https://fishshell.com/][a slurm interface for the 90's]]. Watch, search, sort, log and
+interact with jobs without having to ever remember an =scontrol=
+incantation again.
+
+[[file:.images/main.png]]
+
+[[file:.images/full.png]]
+
+* Features
+
+- Interactive search, sort, and select jobs using the interactive,
+  colourised, Slurm queue.
+- See job details in the job side panel.
+- Cancel, hold, prioritise, suspend and resume jobs via the
+  interactive menus.
+- Get tail-like output for running jobs.
+
+* Requirements
+
+- An HPC cluster running Slurm /at least/ 24.11.
+- If compiling from source: [[https://www.haskell.org/ghcup/][the Haskell toolchain]].
+
+* Installing
+
+There are two options to install slew:
+
+1. Compile from source after first installing
+#+BEGIN_SRC bash
+  $ git clone github.com/lispandfound/slew
+  $ cabal install
+  $ slew
+#+END_SRC
+2. Grab the [[https://github.com/lispandfound/slew/releases][latest release]] as a statically compiled binary suitable for constrained HPC use.
+
+* Usage
+
+Running =slew= will get you 90% of the way there, up and down arrows
+navigate the menu, typing will begin to search the list.
+
+- =C-c= (that is, =ctrl + c=) to brings up the slurm /control/ menu.
+- =C-l= brings up the output /logs/ of commands you ran via =C-c=.
+- =C-s= brings up the squeue /sorting/ menu.
+- =C-o= on a running job to get a live tail of the jobs stdout file.
