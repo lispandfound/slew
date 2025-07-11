@@ -7,12 +7,6 @@ module UI.Transient (
     TransientState,
     TransientMsg (..),
 
-    -- * Lenses
-    char,
-    style,
-    name,
-    command,
-
     -- * Construction
     leaf,
     node,
@@ -40,7 +34,6 @@ import Brick (
     (<+>),
  )
 import Brick.Widgets.Border (hBorderWithLabel)
-import Control.Lens (makeLenses, view, (^.))
 import Data.Tree (Forest, Tree (Node, rootLabel, subForest))
 import Data.Tree.Zipper (
     Full,
@@ -54,20 +47,22 @@ import Data.Tree.Zipper (
     tree,
  )
 import qualified Graphics.Vty as V
+import Optics.Getter (view)
+import Optics.Label ()
+import Optics.Operators ((^.))
 
 data TransientPrefix m = TransientPrefix
-    { _char :: Char
-    , _style :: AttrName
-    , _name :: Text
-    , _command :: Maybe m
+    { char :: Char
+    , style :: AttrName
+    , name :: Text
+    , command :: Maybe m
     }
-    deriving (Show)
+    deriving (Show, Generic)
 
 -- Builder for convenient construction
 
 newtype TransientBuilder m = TransientBuilder {_unBuilder :: Forest (TransientPrefix m)} deriving (Monoid, Semigroup)
 
-makeLenses ''TransientPrefix
 type TransientState m = TreePos Full (TransientPrefix m)
 
 -- | Create a leaf node (action item)
@@ -97,10 +92,12 @@ submenu c txt' = node c mempty txt'
 drawTransientView :: TransientState m -> Widget n
 drawTransientView menu' = go (tree menu')
   where
-    childLabel menu'' = withAttr (menu'' ^. style) (str [menu'' ^. char, ':']) <+> padLeftRight 1 (txt (menu'' ^. name))
+    childLabel :: TransientPrefix m -> Widget n
+    childLabel menu'' = withAttr (menu'' ^. #style) (str [menu'' ^. #char, ':']) <+> padLeftRight 1 (txt (menu'' ^. #name))
+    go :: Tree (TransientPrefix m) -> Widget n
     go current =
         vBox
-            [ hBorderWithLabel (txt $ (rootLabel current) ^. name)
+            [ hBorderWithLabel (txt $ (rootLabel current) ^. #name)
             , hBox (map (childLabel . rootLabel) $ subForest current)
             ]
 
@@ -121,8 +118,8 @@ handleTransientEvent (V.EvKey V.KEsc []) = gets shouldClose <* modify goUp
     goUp = fromMaybe <*> parent
 handleTransientEvent (V.EvKey (V.KChar 'g') [V.MCtrl]) = pure (pure Close)
 handleTransientEvent (V.EvKey (V.KChar c) []) = do
-    nextMenu <- gets (findChild ((== c) . view char))
+    nextMenu <- gets (findChild ((== c) . view #char))
     case nextMenu of
-        Just child -> put child >> gets (First . (<|> pure Next) . fmap Msg . view command . label)
+        Just child -> put child >> gets (First . (<|> pure Next) . fmap Msg . view #command . label)
         Nothing -> pure mempty
 handleTransientEvent _ = pure mempty
