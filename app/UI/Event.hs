@@ -1,5 +1,5 @@
 module UI.Event (
-    handleEvent,
+    handleEventWithEcho,
 ) where
 
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, zoom)
@@ -20,9 +20,10 @@ import Optics.Getter (view)
 import Optics.Operators ((^.))
 import Optics.State (preuse, use)
 import Optics.State.Operators ((%=), (.=))
+import UI.Echo (clear, echo)
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (handlePollerEvent, tailFile)
-import UI.SlurmCommand (SlurmCommandCmd (..), logSlurmCommandEvent, sendSlurmCommandCommand)
+import UI.SlurmCommand (SlurmCommandCmd (..), SlurmCommandLogEntry (SlurmCommandLogEntry, result), logSlurmCommandEvent, sendSlurmCommandCommand)
 import UI.Transient (TransientMsg)
 import qualified UI.Transient as TR
 
@@ -81,6 +82,10 @@ zoomTransient e = do
         Nothing -> pure mempty
 
 -- | Main event handler
+handleEventWithEcho :: BrickEvent Name SlewEvent -> EventM Name AppState ()
+handleEventWithEcho e@(VtyEvent (V.EvKey _ _)) = zoom #echoState clear >> handleEvent e
+handleEventWithEcho e = handleEvent e
+
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = #showLog %= not
 handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
@@ -125,6 +130,9 @@ handleEvent (AppEvent (SlurmCommandSend msg)) = do
     scontrolCommand Hold job = HoldJob [job ^. #jobId]
     scontrolCommand Release job = ReleaseJob [job ^. #jobId]
     scontrolCommand Top job = TopJob [job ^. #jobId]
+handleEvent (AppEvent (SlurmCommandReceive output@(SlurmCommandLogEntry{result = Left _}))) = zoom #echoState (echo errorMessage) >> zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
+  where
+    errorMessage = "command failed, type C-l to see output"
 handleEvent (AppEvent (SlurmCommandReceive output)) = zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
 handleEvent (AppEvent (PollEvent ev)) = zoom #pollState (handlePollerEvent ev)
 handleEvent (AppEvent Tick) = do

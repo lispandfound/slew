@@ -20,6 +20,7 @@ import Model.AppState (
     AppState (..),
     Name (..),
  )
+import UI.Echo (drawEchoBuffer)
 import UI.JobList (drawJobList, drawSearchBar, selectedJob)
 import UI.JobPanel (drawJobPanel)
 import UI.Poller (drawPoller)
@@ -35,5 +36,6 @@ drawApp st =
                 , (drawJobList (st ^. #currentTime) (st ^. #jobQueueState) <+> maybe emptyWidget drawJobPanel (selectedJob (st ^. #jobQueueState)))
                 , drawPoller (st ^. #pollState)
                 , maybe emptyWidget drawTransientView (st ^. #transient)
+                , drawEchoBuffer (st ^. #echoState)
                 ]
            ]

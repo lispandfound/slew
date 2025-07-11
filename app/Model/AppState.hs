@@ -12,6 +12,7 @@ import Control.Concurrent.STM.TChan (newTChanIO)
 import Data.Time.Clock.System (SystemTime, getSystemTime)
 import Model.Job (Job)
 import Optics.Label ()
+import UI.Echo (EchoState, echoStateWith)
 import UI.JobList (JobQueueState, jobList)
 import UI.Poller (PollerState, poller)
 import qualified UI.Poller as UP
@@ -44,11 +45,15 @@ data AppState = AppState
     , currentTime :: SystemTime
     , showLog ::
         Bool
+    , echoState :: EchoState
     }
     deriving (Generic)
 
 ------------------------------------------------------------
 -- Initial State
+
+initialMessage :: Text
+initialMessage = "type C-c to interact with slurm jobs, C-l to view logs, C-s to sort, and C-o to tail job output"
 
 initialState :: IO AppState
 initialState = do
@@ -65,4 +70,5 @@ initialState = do
             , scontrolLogState = scontrolLog SlurmCommandLogView scontrolCommandChannel
             , showLog = False
             , currentTime = currentTime'
+            , echoState = echoStateWith initialMessage
             }
