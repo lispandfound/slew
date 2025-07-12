@@ -61,7 +61,7 @@ data TransientPrefix m n = TransientPrefix
     { char :: Char
     , name :: Text
     , command :: Maybe m
-    , draw :: Widget n
+    , widget :: Widget n
     }
     deriving (Generic)
 
@@ -114,7 +114,7 @@ drawTransientView menu' = go (tree menu')
     go current =
         vBox
             [ hBorderWithLabel (txt $ (rootLabel current) ^. #name)
-            , (view #draw . rootLabel) current
+            , (view #widget . rootLabel) current
             ]
 
 findChild :: (a -> Bool) -> TreePos Full a -> Maybe (TreePos Full a)
