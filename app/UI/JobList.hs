@@ -47,9 +47,8 @@ import Brick.Widgets.TabularList.Mixed (
 
 import qualified Data.Text as T
 import qualified Graphics.Vty as V
-import Optics.At (ix)
 import Optics.Label ()
-import Optics.Operators ((^.), (^?))
+import Optics.Operators ((^.))
 import Optics.State (use)
 import Optics.State.Operators ((%=), (.=))
 

@@ -7,9 +7,11 @@ import Brick (
     App (..),
     customMain,
     showFirstCursor,
+    zoom,
  )
 import qualified Brick.BChan as BC
 import Brick.Themes (Theme, themeToAttrMap)
+import Brick.Types (EventM)
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.Async (withAsync)
 import Graphics.Vty.Config (defaultConfig)
@@ -25,7 +27,7 @@ import Options.Applicative (Parser, ParserInfo, auto, execParser, fullDesc, head
 import SQueue.Poller (squeueThread)
 import System.Environment.Blank (getEnv)
 import System.FilePath (combine)
-import System.IO (hPutStrLn)
+import UI.Echo (echo)
 import UI.Event (handleEventWithEcho)
 import UI.Poller (PollerState (..), startPoller)
 import UI.SlurmCommand (SlurmCommandLogEntry (..), SlurmCommandLogState (..), startSlurmCommandListener)
@@ -35,13 +37,13 @@ import UI.View (drawApp)
 ------------------------------------------------------------
 -- Brick App Definition
 
-app :: Theme -> App AppState SlewEvent Name
-app theme =
+app :: EventM Name AppState () -> Theme -> App AppState SlewEvent Name
+app init' theme =
     App
         { appDraw = drawApp
         , appChooseCursor = showFirstCursor
         , appHandleEvent = handleEventWithEcho
-        , appStartEvent = pure ()
+        , appStartEvent = init'
         , appAttrMap = const (themeToAttrMap theme)
         }
 
@@ -94,8 +96,7 @@ main = do
     themeOrErr <- maybe (pure . Right $ defaultTheme) loadTheme slewThemePath
     withAsyncs asyncActions $ do
         let buildVty = mkVty defaultConfig
+            theme = fromRight defaultTheme themeOrErr
+            initialEvent = either (zoom #echoState . echo . toText) (const $ pure ()) themeOrErr
         initialVty <- buildVty
-        theme <- case themeOrErr of
-            Right theme -> pure theme
-            Left err -> hPutStrLn stderr err >> hFlush stderr >> pure defaultTheme
-        void $ customMain initialVty buildVty (Just eventChannel) (app theme) is
+        void $ customMain initialVty buildVty (Just eventChannel) (app initialEvent theme) is
