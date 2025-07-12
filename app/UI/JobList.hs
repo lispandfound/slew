@@ -66,6 +66,7 @@ import Model.Job (
  )
 import Optics.Core ((%))
 import Optics.Getter (view)
+import UI.Themes (column, jobId, jobState, selectedRow, squeue)
 
 type JobTabularList n = MixedTabularList n Job Widths
 type JobRenderers n = MixedRenderers n Job Widths
@@ -85,7 +86,7 @@ colHeader =
     MixedColHdr
         { draw = \_ (MColC (Ix ci)) ->
             case columnHeaderNames Vec.!? ci of
-                Just colName -> withAttr (attrName "columnHeader") (padRight Max (txt colName) <+> str " ") <=> hBorder
+                Just colName -> withAttr (squeue <> column <> attrName (toString colName)) (padRight Max (txt colName) <+> str " ") <=> hBorder
                 Nothing -> emptyWidget
         , widths = \Widths{jobCols} -> jobCols
         , height = ColHdrH 2
@@ -182,7 +183,7 @@ cellRenderer :: SystemTime -> ListFocused -> MixedCtxt -> Job -> Widget n
 cellRenderer currentTime (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
     let
      in case ci of
-            0 -> withAttr (attrName "jobId") . render . show $ job ^. #jobId
+            0 -> withAttr jobId . render . show $ job ^. #jobId
             1 -> render $ job ^. #name
             2 -> render $ job ^. #account
             3 -> styleAttribute . padRight Max . foldr (\st w -> (jobStateLabel st) <+> w) emptyWidget $ job ^. #jobState
@@ -195,24 +196,19 @@ cellRenderer currentTime (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
   where
     nodesFor :: Job -> Text
     nodesFor job' = if T.null (job' ^. #nodes) then "-" else job' ^. #nodes
-    styleAttribute = if isFocused then withAttr (attrName "selected") else id
+    styleAttribute = if isFocused then withAttr selectedRow else id
     renderRunningTime (Set t) t'
         | currentTime > t = (render . formatTime) (systemDiffTime t t')
         | otherwise = render "-"
     renderRunningTime _ _ = render "-"
     render s = styleAttribute $ padRight Max (txt s) <+> str " "
-    stateStyles :: Map Text String
-    stateStyles =
-        fromList
-            [ ("PENDING", "jobState.PENDING")
-            , ("RUNNING", "jobState.RUNNING")
-            , ("FAILED", "jobState.FAILED")
-            , ("COMPLETED", "jobState.COMPLETED")
-            , ("CANCELLED", "jobState.CANCELLED")
-            ]
-    jobStateLabel st = case stateStyles ^? ix st of
-        Just attr | not isFocused -> withAttr (attrName attr) (padRight Max (txt st))
-        _ -> padRight (Pad 1) (txt st)
+    jobStateLabel st =
+        if isFocused
+            then padRight (Pad 1) (txt st)
+            else
+                withAttr
+                    (jobState <> (attrName (toString st)))
+                    (padRight Max (txt st))
 
 columnHeaderNames :: Vector Text
 columnHeaderNames = Vec.fromList ["ID", "Name", "Account", "State", "Time", "Nodes"]

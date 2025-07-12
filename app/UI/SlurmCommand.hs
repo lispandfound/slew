@@ -5,7 +5,6 @@ import Brick (
     Padding (Pad),
     ViewportType (Vertical),
     Widget,
-    attrName,
     emptyWidget,
     hBox,
     padLeftRight,
@@ -40,6 +39,7 @@ import Optics.Label ()
 import Optics.Operators ((^.))
 import Optics.State (use)
 import Optics.State.Operators ((%=))
+import UI.Themes (failure, jobId, success)
 
 data SlurmCommandCmd
     = CancelJob [Int]
@@ -119,15 +119,15 @@ formatShellCommand cmd =
     format name' ids =
         padLeftRight 1 (str name')
             <+> hBox
-                (map (\i -> padRight (Pad 1) $ withAttr (attrName "jobId") (txt . show $ i)) ids)
+                (map (\i -> padRight (Pad 1) $ withAttr jobId (txt . show $ i)) ids)
 
 drawEntry :: SlurmCommandLogEntry -> Widget n
 drawEntry (SlurmCommandLogEntry{command = com, result = res}) = vBox [commandLine, commandOutput]
   where
     commandLine = hBox [padRight (Pad 4) exitStatus, shellCommand]
     exitStatus = case res of
-        Left (SlurmCommandError{exitCode = e}) -> withAttr (attrName "exitFailure") (txt . show $ e)
-        Right _ -> withAttr (attrName "exitSuccess") (txt "0")
+        Left (SlurmCommandError{exitCode = e}) -> withAttr failure (txt . show $ e)
+        Right _ -> withAttr success (txt "0")
     commandOutput = case res of
         Left (SlurmCommandError{stderr = err}) -> str err
         Right (SlurmCommandOutput{stdout = out}) -> str out

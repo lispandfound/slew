@@ -56,6 +56,7 @@ import qualified Graphics.Vty as V
 import Optics.Getter (view)
 import Optics.Label ()
 import Optics.Operators ((^.))
+import qualified UI.Themes as Th
 
 data TransientPrefix m n = TransientPrefix
     { char :: Char
@@ -101,11 +102,11 @@ menu rootName (TransientBuilder draw children) =
 
 -- | Create a simple action item
 item :: Char -> Text -> m -> TransientBuilder m n
-item c txt' cmd = leaf c mempty txt' cmd
+item c txt' cmd = leaf c (Th.transient <> Th.label) txt' cmd
 
 -- | Create a submenu
 submenu :: Char -> Text -> TransientBuilder m n -> TransientBuilder m n
-submenu c txt' = node c mempty txt'
+submenu c txt' = node c (Th.transient <> Th.submenu) txt'
 
 drawTransientView :: TransientState m n -> Widget n
 drawTransientView menu' = go (tree menu')

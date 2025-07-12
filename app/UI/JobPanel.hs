@@ -28,6 +28,7 @@ import Optics.Operators ((^.))
 
 import Data.Time.Clock.System (systemToUTCTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
+import UI.Themes (jobLabel, jobState)
 
 -- | Render detailed job panel
 drawJobPanel :: Job -> Widget n
@@ -35,17 +36,17 @@ drawJobPanel job =
     let labeledField :: Text -> Text -> Widget n
         labeledField label value =
             hBox
-                [ withAttr (attrName "jobLabel") (txt (label <> ": "))
-                , withAttr (attrName "jobValue") (txt value)
+                [ withAttr jobLabel (txt (label <> ": "))
+                , txt value
                 ]
 
-        stateAttr stateName = attrName $ "jobState." <> toString stateName
+        stateAttr stateName = jobState <> attrName (toString stateName)
         jobStateWidget = foldr (\stateName widget -> withAttr (stateAttr $ stateName) (txt stateName) <=> widget) emptyWidget (job ^. #jobState)
      in border . padBottom Max . padLeftRight 1 . vBox $
             [ hBox
-                [ withAttr (attrName "jobLabel") (str "Job ID: ")
-                , withAttr (attrName "jobValue") (txt . show $ job ^. #jobId)
-                , withAttr (attrName "jobLabel") (str " State: ")
+                [ withAttr jobLabel (str "Job ID: ")
+                , (txt . show $ job ^. #jobId)
+                , withAttr jobLabel (str " State: ")
                 , jobStateWidget
                 ]
             , labeledField "Name" (job ^. #name)
