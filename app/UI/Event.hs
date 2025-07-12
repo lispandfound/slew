@@ -2,7 +2,7 @@ module UI.Event (
     handleEventWithEcho,
 ) where
 
-import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, zoom)
+import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, txt, zoom)
 import Brick.BChan (writeBChan)
 import Data.Time.Clock.System (getSystemTime)
 import qualified Graphics.Vty as V
@@ -32,27 +32,30 @@ triggerSqueue = do
     ch <- use #squeueChannel
     liftIO (writeBChan ch ())
 
-scontrolTransient :: TR.TransientState SlewEvent
+scontrolTransient :: TR.TransientState SlewEvent Name
 scontrolTransient =
     TR.menu "Job Control" $
-        mconcat
+        TR.horizontalLayout $
             [ TR.submenu 's' "State Control" $
-                mconcat
-                    [ TR.item 'h' "Hold" (SlurmCommandSend Hold)
-                    , TR.item 'r' "Resume" (SlurmCommandSend Resume)
-                    , TR.item 's' "Suspend" (SlurmCommandSend Suspend)
-                    , TR.item 'c' "Cancel" (SlurmCommandSend Cancel)
-                    ]
-            , TR.submenu 'p' "Priority" $
-                mconcat
-                    [ TR.item 't' "Top" (SlurmCommandSend Top)
+                TR.horizontalLayout
+                    [ TR.verticalLayoutWithLabel
+                        (txt "Stop or Start")
+                        [ TR.item 'h' "Hold" (SlurmCommandSend Hold)
+                        , TR.item 'r' "Resume" (SlurmCommandSend Resume)
+                        , TR.item 's' "Suspend" (SlurmCommandSend Suspend)
+                        , TR.item 'c' "Cancel" (SlurmCommandSend Cancel)
+                        ]
+                    , TR.verticalLayoutWithLabel
+                        (txt "Priority")
+                        [ TR.item 't' "Top" (SlurmCommandSend Top)
+                        ]
                     ]
             ]
 
-sortTransient :: TR.TransientState SlewEvent
+sortTransient :: TR.TransientState SlewEvent Name
 sortTransient =
     TR.menu "Job Sorting" $
-        mconcat
+        TR.horizontalLayout
             [ TR.item 'a' "Account" (SortBy Account)
             , TR.item 'c' "CPUs" (SortBy CPUs)
             , TR.item 's' "Start Time" (SortBy StartTime)

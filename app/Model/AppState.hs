@@ -30,7 +30,7 @@ data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
 data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
 data SlewEvent = SQueueStatus [Job] | PollEvent UP.PollEvent | SlurmCommandSend Command | SlurmCommandReceive SlurmCommandLogEntry | SortBy Category | Tick deriving (Show)
 
-data Name = SearchEditor | JobListWidget | SlurmCommandLogView
+data Name = SearchEditor | JobListWidget | SlurmCommandLogView | TransientView
     deriving (Eq, Ord, Show)
 
 ------------------------------------------------------------
@@ -38,7 +38,7 @@ data Name = SearchEditor | JobListWidget | SlurmCommandLogView
 
 data AppState = AppState
     { jobQueueState :: JobQueueState Name
-    , transient :: Maybe (TR.TransientState SlewEvent)
+    , transient :: Maybe (TR.TransientState SlewEvent Name)
     , pollState :: PollerState
     , scontrolLogState :: SlurmCommandLogState Name
     , squeueChannel :: BChan ()

@@ -13,6 +13,9 @@ module UI.Transient (
     menu,
     item,
     submenu,
+    horizontalLayout,
+    verticalLayout,
+    verticalLayoutWithLabel,
 
     -- * Drawing
     drawTransientView,
@@ -24,9 +27,12 @@ module UI.Transient (
 import Brick (
     AttrName,
     EventM,
+    Padding (..),
     Widget,
+    emptyWidget,
     hBox,
     padLeftRight,
+    padRight,
     str,
     txt,
     vBox,
@@ -34,7 +40,7 @@ import Brick (
     (<+>),
  )
 import Brick.Widgets.Border (hBorderWithLabel)
-import Data.Tree (Forest, Tree (Node, rootLabel, subForest))
+import Data.Tree (Forest, Tree (Node, rootLabel))
 import Data.Tree.Zipper (
     Full,
     TreePos,
@@ -51,54 +57,64 @@ import Optics.Getter (view)
 import Optics.Label ()
 import Optics.Operators ((^.))
 
-data TransientPrefix m = TransientPrefix
+data TransientPrefix m n = TransientPrefix
     { char :: Char
-    , style :: AttrName
     , name :: Text
     , command :: Maybe m
+    , widget :: Widget n
     }
-    deriving (Show, Generic)
+    deriving (Generic)
 
 -- Builder for convenient construction
 
-newtype TransientBuilder m = TransientBuilder {_unBuilder :: Forest (TransientPrefix m)} deriving (Monoid, Semigroup)
+data TransientBuilder m n = TransientBuilder {draw :: Widget n, tree :: Forest (TransientPrefix m n)} deriving (Generic)
 
-type TransientState m = TreePos Full (TransientPrefix m)
+type TransientState m n = TreePos Full (TransientPrefix m n)
+
+horizontalLayout :: [TransientBuilder m n] -> TransientBuilder m n
+horizontalLayout nodes = TransientBuilder (hBox . map (padRight (Pad 5) . view #draw) $ nodes) (mconcat . map (view #tree) $ nodes)
+
+verticalLayout :: [TransientBuilder m n] -> TransientBuilder m n
+verticalLayout = verticalLayoutWithLabel emptyWidget
+
+verticalLayoutWithLabel :: Widget n -> [TransientBuilder m n] -> TransientBuilder m n
+verticalLayoutWithLabel label' nodes = TransientBuilder (vBox . (label' :) . map (view #draw) $ nodes) (mconcat . map (view #tree) $ nodes)
+
+childLabel :: AttrName -> Char -> Text -> Widget n
+childLabel style char name = withAttr style (str [char, ':']) <+> padLeftRight 1 (txt name)
 
 -- | Create a leaf node (action item)
-leaf :: Char -> AttrName -> Text -> m -> TransientBuilder m
-leaf c attr txt' cmd = TransientBuilder [Node (TransientPrefix c attr txt' (Just cmd)) []]
+leaf :: Char -> AttrName -> Text -> m -> TransientBuilder m n
+leaf c attr txt' cmd = TransientBuilder (childLabel attr c txt') [Node (TransientPrefix c txt' (Just cmd) emptyWidget) []]
 
 -- | Create a node with children (submenu)
-node :: Char -> AttrName -> Text -> TransientBuilder m -> TransientBuilder m
-node c attr txt' (TransientBuilder children) =
-    TransientBuilder [Node (TransientPrefix c attr txt' Nothing) children]
+node :: Char -> AttrName -> Text -> TransientBuilder m n -> TransientBuilder m n
+node c attr txt' (TransientBuilder draw children) =
+    TransientBuilder (childLabel attr c txt') [Node (TransientPrefix c txt' Nothing draw) children]
 
 -- | Run the builder to create a transient state
-menu :: Text -> TransientBuilder m -> TransientState m
-menu rootName (TransientBuilder children) =
-    fromTree $ Node (TransientPrefix ' ' mempty rootName Nothing) children
+menu :: Text -> TransientBuilder m n -> TransientState m n
+menu rootName (TransientBuilder draw children) =
+    fromTree $ Node (TransientPrefix ' ' rootName Nothing draw) children
 
 -- Convenience functions for common patterns
 
 -- | Create a simple action item
-item :: Char -> Text -> m -> TransientBuilder m
+item :: Char -> Text -> m -> TransientBuilder m n
 item c txt' cmd = leaf c mempty txt' cmd
 
 -- | Create a submenu
-submenu :: Char -> Text -> TransientBuilder m -> TransientBuilder m
+submenu :: Char -> Text -> TransientBuilder m n -> TransientBuilder m n
 submenu c txt' = node c mempty txt'
 
-drawTransientView :: TransientState m -> Widget n
+drawTransientView :: TransientState m n -> Widget n
 drawTransientView menu' = go (tree menu')
   where
-    childLabel :: TransientPrefix m -> Widget n
-    childLabel menu'' = withAttr (menu'' ^. #style) (str [menu'' ^. #char, ':']) <+> padLeftRight 1 (txt (menu'' ^. #name))
-    go :: Tree (TransientPrefix m) -> Widget n
+    go :: Tree (TransientPrefix m n) -> Widget n
     go current =
         vBox
             [ hBorderWithLabel (txt $ (rootLabel current) ^. #name)
-            , hBox (map (childLabel . rootLabel) $ subForest current)
+            , (view #widget . rootLabel) current
             ]
 
 findChild :: (a -> Bool) -> TreePos Full a -> Maybe (TreePos Full a)
@@ -111,7 +127,7 @@ findChild p pos = firstChild pos >>= go
 -- | TransientMsg is either: close dialog, emit msg, traverse up or traverse down (for submenus).
 data TransientMsg m = Close | Msg m | Up | Next
 
-handleTransientEvent :: V.Event -> EventM n (TransientState m) (First (TransientMsg m))
+handleTransientEvent :: V.Event -> EventM n (TransientState m n) (First (TransientMsg m))
 handleTransientEvent (V.EvKey V.KEsc []) = gets shouldClose <* modify goUp
   where
     shouldClose st = if isRoot st then pure Close else pure Up
