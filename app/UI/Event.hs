@@ -4,6 +4,7 @@ module UI.Event (
 
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, txt, zoom)
 import Brick.BChan (writeBChan)
+import Brick.Widgets.Core (withAttr)
 import Data.Time.Clock.System (getSystemTime)
 import qualified Graphics.Vty as V
 import Model.AppState (
@@ -24,6 +25,7 @@ import UI.Echo (clear, echo)
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (handlePollerEvent, tailFile)
 import UI.SlurmCommand (SlurmCommandCmd (..), SlurmCommandLogEntry (SlurmCommandLogEntry, result), logSlurmCommandEvent, sendSlurmCommandCommand)
+import UI.Themes (header, transient)
 import UI.Transient (TransientMsg)
 import qualified UI.Transient as TR
 
@@ -39,14 +41,14 @@ scontrolTransient =
             [ TR.submenu 's' "State Control" $
                 TR.horizontalLayout
                     [ TR.verticalLayoutWithLabel
-                        (txt "Stop or Start")
+                        (withAttr (transient <> header) $ txt "Stop or Start")
                         [ TR.item 'h' "Hold" (SlurmCommandSend Hold)
                         , TR.item 'r' "Resume" (SlurmCommandSend Resume)
                         , TR.item 's' "Suspend" (SlurmCommandSend Suspend)
                         , TR.item 'c' "Cancel" (SlurmCommandSend Cancel)
                         ]
                     , TR.verticalLayoutWithLabel
-                        (txt "Priority")
+                        (withAttr (transient <> header) $ txt "Priority")
                         [ TR.item 't' "Top" (SlurmCommandSend Top)
                         ]
                     ]
@@ -56,13 +58,28 @@ sortTransient :: TR.TransientState SlewEvent Name
 sortTransient =
     TR.menu "Job Sorting" $
         TR.horizontalLayout
-            [ TR.item 'a' "Account" (SortBy Account)
-            , TR.item 'c' "CPUs" (SortBy CPUs)
-            , TR.item 's' "Start Time" (SortBy StartTime)
-            , TR.item 'e' "End Time" (SortBy EndTime)
-            , TR.item 'j' "Job Name" (SortBy JobName)
-            , TR.item 'u' "User Name" (SortBy UserName)
-            , TR.item 'm' "Memory (per node)" (SortBy Memory)
+            [ TR.verticalLayoutWithLabel
+                (withAttr (transient <> header) $ txt "Name of")
+                [ TR.item
+                    'a'
+                    "Account"
+                    (SortBy Account)
+                , TR.item
+                    'u'
+                    "User"
+                    (SortBy UserName)
+                , TR.item 'j' "Job" (SortBy JobName)
+                ]
+            , TR.verticalLayoutWithLabel
+                (withAttr (transient <> header) $ txt "Time")
+                [ TR.item 's' "Start Time" (SortBy StartTime)
+                , TR.item 'e' "End Time" (SortBy EndTime)
+                ]
+            , TR.verticalLayoutWithLabel
+                (withAttr (transient <> header) $ txt "Resources")
+                [ TR.item 'c' "CPUs" (SortBy CPUs)
+                , TR.item 'm' "Memory (per node)" (SortBy Memory)
+                ]
             ]
 
 sortListByCat :: Category -> Job -> Job -> Ordering
