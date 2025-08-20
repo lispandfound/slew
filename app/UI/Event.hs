@@ -122,7 +122,7 @@ handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
 handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = do
     curJob <- selectedJob <$> use #jobQueueState
     case curJob of
-        Just job -> zoom #pollState (tailFile (job ^. #standardOutput))
+        Just job -> zoom #pollState (tailFile (job ^. #standardOutput)) >> zoom #echoState (echo $ "Tailing " <> toText (job ^. #standardOutput))
         Nothing -> pure ()
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
     #transient .= Just sortTransient -- could parameterise this
