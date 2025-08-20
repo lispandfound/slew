@@ -28,6 +28,9 @@ import UI.SlurmCommand (SlurmCommandCmd (..), SlurmCommandLogEntry (SlurmCommand
 import UI.Themes (header, transient)
 import UI.Transient (TransientMsg)
 import qualified UI.Transient as TR
+import Brick.Main (suspendAndResume)
+import System.Process (callCommand)
+
 
 triggerSqueue :: EventM n AppState ()
 triggerSqueue = do
@@ -122,7 +125,8 @@ handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
 handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = do
     curJob <- selectedJob <$> use #jobQueueState
     case curJob of
-        Just job -> zoom #pollState (tailFile (job ^. #standardOutput)) >> zoom #echoState (echo $ "Tailing " <> toText (job ^. #standardOutput))
+        Just job -> suspendAndResume $ do 
+            callCommand $ "less +F " <> (job ^. #standardOutput)
         Nothing -> pure ()
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
     #transient .= Just sortTransient -- could parameterise this
