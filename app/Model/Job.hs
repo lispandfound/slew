@@ -93,8 +93,13 @@ normaliseDates job =
     normalise (Set (MkSystemTime 0 0)) = Unset
     normalise x = x
 
+fixPaths :: Job -> Job
+fixPaths job = job & over #standardOutput normalisePath & over #standardError normalisePath
+  where 
+    normalisePath = filter (/= '\\')
+
 instance FromJSON Job where
-    parseJSON = fmap normaliseDates . genericParseJSON snakeCaseOptions
+    parseJSON = fmap fixPaths . fmap normaliseDates . genericParseJSON snakeCaseOptions
 
 -- | Format seconds to HH:MM:SS string
 formatTime :: DiffTime -> Text
