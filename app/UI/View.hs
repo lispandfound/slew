@@ -23,7 +23,6 @@ import Model.AppState (
 import UI.Echo (drawEchoBuffer)
 import UI.JobList (drawJobList, drawSearchBar, selectedJob)
 import UI.JobPanel (drawJobPanel)
-import UI.Poller (drawPoller)
 import UI.SlurmCommand (drawSlurmCommandLog)
 import UI.Transient (drawTransientView)
 
@@ -34,7 +33,6 @@ drawApp st =
         <> [ vBox
                 [ (drawSearchBar (st ^. #jobQueueState) <=> hBorder)
                 , (drawJobList (st ^. #currentTime) (st ^. #jobQueueState) <+> maybe emptyWidget drawJobPanel (selectedJob (st ^. #jobQueueState)))
-                , drawPoller (st ^. #pollState)
                 , maybe emptyWidget drawTransientView (st ^. #transient)
                 , drawEchoBuffer (st ^. #echoState)
                 ]

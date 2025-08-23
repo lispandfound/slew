@@ -17,13 +17,14 @@ import Model.AppState (
 import Model.Job (
     Job (..),
  )
+import Optics.Core (Lens')
 import Optics.Getter (view)
 import Optics.Operators ((^.))
 import Optics.State (preuse, use)
 import Optics.State.Operators ((%=), (.=))
 import UI.Echo (clear, echo)
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
-import UI.Poller (handlePollerEvent, tailFile)
+import UI.Poller (tailFile)
 import UI.SlurmCommand (SlurmCommandCmd (..), SlurmCommandLogEntry (SlurmCommandLogEntry, result), logSlurmCommandEvent, sendSlurmCommandCommand)
 import UI.Themes (header, transient)
 import UI.Transient (TransientMsg)
@@ -106,6 +107,13 @@ handleEventWithEcho :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleEventWithEcho e@(VtyEvent (V.EvKey _ _)) = zoom #echoState clear >> handleEvent e
 handleEventWithEcho e = handleEvent e
 
+handleJobFile :: Lens' Job FilePath -> EventM Name AppState ()
+handleJobFile field = do
+    mJob <- selectedJob <$> use #jobQueueState
+    for_ mJob $ \job -> do
+        result <- tailFile (job ^. field)
+        either (zoom #echoState . echo) (const (pure ())) result
+
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = #showLog %= not
 handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
@@ -119,11 +127,8 @@ handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
     #transient .= Just scontrolTransient -- could parameterise this
-handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = do
-    curJob <- selectedJob <$> use #jobQueueState
-    case curJob of
-        Just job -> zoom #pollState (tailFile (job ^. #standardOutput))
-        Nothing -> pure ()
+handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = handleJobFile #standardOutput
+handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) = handleJobFile #standardError
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
     #transient .= Just sortTransient -- could parameterise this
 handleEvent (VtyEvent e) = do
@@ -154,7 +159,6 @@ handleEvent (AppEvent (SlurmCommandReceive output@(SlurmCommandLogEntry{result =
   where
     errorMessage = "command failed, type C-l to see output"
 handleEvent (AppEvent (SlurmCommandReceive output)) = zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
-handleEvent (AppEvent (PollEvent ev)) = zoom #pollState (handlePollerEvent ev)
 handleEvent (AppEvent Tick) = do
     sysTime <- liftIO getSystemTime
     #currentTime .= sysTime
