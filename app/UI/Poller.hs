@@ -13,4 +13,4 @@ safeCall prog args = do
         ExitFailure intCode -> return . Left . fmt $ "Program " +| showCommandForUser prog args |+ " exited with code " +| intCode |+ ": " +| err |+ ""
 
 tailFile :: (Ord n) => FilePath -> EventM n s (Either Text ())
-tailFile fp = suspendAndResume' $ (safeCall "less" ["+F", fp])
+tailFile fp = suspendAndResume' $ safeCall "less" ["+F", fp]
