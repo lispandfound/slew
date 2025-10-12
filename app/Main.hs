@@ -19,7 +19,7 @@ import Graphics.Vty.CrossPlatform (mkVty)
 import Model.AppState (
     AppState (..),
     Name,
-    SlewEvent (PollEvent, SQueueStatus, SlurmCommandReceive, Tick),
+    SlewEvent (SQueueStatus, SlurmCommandReceive, Tick),
     initialState,
  )
 import Optics.Operators ((^.))
@@ -29,7 +29,6 @@ import System.Environment.Blank (getEnv)
 import System.FilePath (combine)
 import UI.Echo (echo)
 import UI.Event (handleEventWithEcho)
-import UI.Poller (PollerState (..), startPoller)
 import UI.SlurmCommand (SlurmCommandLogEntry (..), SlurmCommandLogState (..), startSlurmCommandListener)
 import UI.Themes (defaultTheme, loadTheme)
 import UI.View (drawApp)
@@ -90,7 +89,6 @@ main = do
         asyncActions =
             [ tickThread (BC.writeBChan eventChannel Tick)
             , squeueThread (opts ^. #pollInterval) (is ^. #squeueChannel) (BC.writeBChan eventChannel . SQueueStatus)
-            , startPoller (is ^. #pollState ^. #commandChannel) (BC.writeBChan eventChannel . PollEvent)
             , startSlurmCommandListener (is ^. #scontrolLogState ^. #chan) (\cmd output -> BC.writeBChan eventChannel (SlurmCommandReceive (SlurmCommandLogEntry cmd output)))
             ]
     themeOrErr <- maybe (pure . Right $ defaultTheme) loadTheme slewThemePath
