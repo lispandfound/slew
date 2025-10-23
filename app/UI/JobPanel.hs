@@ -61,6 +61,6 @@ drawJobPanel job =
                 ]
             when ("COMPLETED" `elem` (job ^. #jobState) || "FAILED" `elem` (job ^. #jobState)) $
                 tell [labeledField "Exit Code" (T.intercalate " " $ job ^. #exitCode ^. #status)]
-            when ((not . T.null) (job ^. #stateReason)) $ 
+            when ((not . T.null) (job ^. #stateReason) && (job ^. #stateReason /= "None")) $ 
                 tell [labeledField "State Reason" (job ^. #stateReason)]
 
