@@ -124,11 +124,12 @@ handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
         (True, _) -> #showLog .= False
         (False, Just TR.Close) -> #transient .= Nothing
         _ -> halt
-handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
+handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
     #transient .= Just scontrolTransient -- could parameterise this
 handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = handleJobFile #standardOutput
 handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) = handleJobFile #standardError
+handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [V.MCtrl])) = triggerSqueue
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
     #transient .= Just sortTransient -- could parameterise this
 handleEvent (VtyEvent e) = do
