@@ -29,6 +29,7 @@ import Optics.Operators ((^.))
 import Data.Time.Clock.System (systemToUTCTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import UI.Themes (jobLabel, jobState)
+import Control.Monad.Writer
 
 -- | Render detailed job panel
 drawJobPanel :: Job -> Widget n
@@ -42,22 +43,24 @@ drawJobPanel job =
 
         stateAttr stateName = jobState <> attrName (toString stateName)
         jobStateWidget = foldr (\stateName widget -> withAttr (stateAttr $ stateName) (txt stateName) <=> widget) emptyWidget (job ^. #jobState)
-     in border . padBottom Max . padLeftRight 1 . vBox $
-            [ hBox
-                [ withAttr jobLabel (str "Job ID: ")
-                , (txt . show $ job ^. #jobId)
-                , withAttr jobLabel (str " State: ")
-                , jobStateWidget
+     in border . padBottom Max . padLeftRight 1 . vBox . execWriter $ do
+            tell [ hBox
+                    [ withAttr jobLabel (str "Job ID: ") , (txt . show $ job ^. #jobId)
+                    , withAttr jobLabel (str " State: ")
+                    , jobStateWidget
+                    ]
+                , labeledField "Name" (job ^. #name)
+                , labeledField "User" (job ^. #userName)
+                , labeledField "Partition" (job ^. #partition)
+                , labeledField "Nodes" (job ^. #nodes)
+                , labeledField "CPUs" (showWith show $ job ^. #cpus)
+                , labeledField "Memory/Node" (showWith (\mem -> show mem <> " MB") (job ^. #memoryPerNode))
+                , labeledField "Time Limit" (showWith formatTime $ job ^. #timeLimit)
+                , labeledField "Start Time" (showWith (toText . iso8601Show . systemToUTCTime) $ job ^. #startTime)
+                , labeledField "End Time" (showWith (toText . iso8601Show . systemToUTCTime) $ job ^. #endTime)
                 ]
-            , labeledField "Name" (job ^. #name)
-            , labeledField "User" (job ^. #userName)
-            , labeledField "Partition" (job ^. #partition)
-            , labeledField "Nodes" (job ^. #nodes)
-            , labeledField "CPUs" (showWith show $ job ^. #cpus)
-            , labeledField "Memory/Node" (showWith (\mem -> show mem <> " MB") (job ^. #memoryPerNode))
-            , labeledField "Time Limit" (showWith formatTime $ job ^. #timeLimit)
-            , labeledField "Start Time" (showWith (toText . iso8601Show . systemToUTCTime) $ job ^. #startTime)
-            , labeledField "End Time" (showWith (toText . iso8601Show . systemToUTCTime) $ job ^. #endTime)
-            , labeledField "Exit Code" (T.intercalate " " $ job ^. #exitCode ^. #status)
-            , labeledField "State Reason" (job ^. #stateReason)
-            ]
+            when ("COMPLETED" `elem` (job ^. #jobState) || "FAILED" `elem` (job ^. #jobState)) $
+                tell [labeledField "Exit Code" (T.intercalate " " $ job ^. #exitCode ^. #status)]
+            when ((not . T.null) (job ^. #stateReason)) $ 
+                tell [labeledField "State Reason" (job ^. #stateReason)]
+
