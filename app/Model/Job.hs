@@ -23,6 +23,11 @@ import Optics.Setter (over)
 
 data Quantity a = Unset | Infinite | Set a deriving (Show, Eq, Generic)
 
+instance Functor Quantity where
+    fmap f (Set a) = Set (f a)
+    fmap _ Unset = Unset
+    fmap _ Infinite = Infinite
+
 instance (Ord a) => Ord (Quantity a) where
     compare Unset Unset = EQ
     compare Infinite Infinite = EQ
@@ -93,8 +98,11 @@ normaliseDates job =
     normalise (Set (MkSystemTime 0 0)) = Unset
     normalise x = x
 
+convertTimeLimit :: Job -> Job
+convertTimeLimit = over #timeLimit (fmap (* 60)) -- Time limits appear to be in minutes rather seconds 
+
 instance FromJSON Job where
-    parseJSON = fmap normaliseDates . genericParseJSON snakeCaseOptions
+    parseJSON = fmap (convertTimeLimit . normaliseDates) . genericParseJSON snakeCaseOptions
 
 -- | Format seconds to HH:MM:SS string
 formatTime :: DiffTime -> Text
