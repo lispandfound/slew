@@ -184,13 +184,14 @@ cellRenderer currentTime (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
      in case ci of
             0 -> withAttr jobId . render . show $ job ^. #jobId
             1 -> render $ job ^. #name
-            2 -> render $ job ^. #account
-            3 -> styleAttribute . padRight Max . foldr (\st w -> (jobStateLabel st) <+> w) emptyWidget $ job ^. #jobState
-            4 ->
+            2 -> render $ job ^. #userName
+            3 -> render $ job ^. #account
+            4 -> styleAttribute . padRight Max . foldr (\st w -> (jobStateLabel st) <+> w) emptyWidget $ job ^. #jobState
+            5 ->
                 renderRunningTime
                     (job ^. #startTime)
                     currentTime
-            5 -> render $ (nodesFor job)
+            6 -> render $ (nodesFor job)
             _ -> emptyWidget
   where
     nodesFor :: Job -> Text
@@ -210,7 +211,7 @@ cellRenderer currentTime (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
                     (padRight Max (txt st))
 
 columnHeaderNames :: Vector Text
-columnHeaderNames = Vec.fromList ["ID", "Name", "Account", "State", "Time", "Nodes"]
+columnHeaderNames = Vec.fromList ["ID", "Name", "User", "Account", "State", "Time", "Nodes"]
 
 columnHeaders :: MixedColHdr n Widths
 columnHeaders =

@@ -101,8 +101,9 @@ formatTime :: DiffTime -> Text
 formatTime diff =
     let
         seconds = round diff :: Int
-        hours = seconds `div` 3600
+        days = seconds `div` 86400
+        hours = (seconds `mod` 86400)`div` 3600
         minutes = (seconds `mod` 3600) `div` 60
         secs = seconds `mod` 60
      in
-        "" +| padLeftF 2 '0' hours |+ ":" +| padLeftF 2 '0' minutes |+ ":" +| padLeftF 2 '0' secs |+ ""
+        (if days > 0 then (padLeftF 2 '0' days +| "-") else "") +| padLeftF 2 '0' hours |+ ":" +| padLeftF 2 '0' minutes |+ ":" +| padLeftF 2 '0' secs |+ ""
