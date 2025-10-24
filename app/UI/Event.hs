@@ -34,6 +34,8 @@ triggerSqueue :: EventM n AppState ()
 triggerSqueue = do
     ch <- use #squeueChannel
     liftIO (writeBChan ch ())
+    curTime <- liftIO getSystemTime
+    #lastUpdate .= pure curTime
 
 scontrolTransient :: TR.TransientState SlewEvent Name
 scontrolTransient =

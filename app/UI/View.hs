@@ -32,7 +32,7 @@ drawApp st =
     (if st ^. #showLog then [drawSlurmCommandLog (st ^. #scontrolLogState)] else [])
         <> [ vBox
                 [ (drawSearchBar (st ^. #jobQueueState) <=> hBorder)
-                , (drawJobList (st ^. #currentTime) (st ^. #jobQueueState) <+> maybe emptyWidget drawJobPanel (selectedJob (st ^. #jobQueueState)))
+                , (drawJobList (st ^. #currentTime) (st ^. #lastUpdate) (st ^. #jobQueueState) <+> maybe emptyWidget drawJobPanel (selectedJob (st ^. #jobQueueState)))
                 , maybe emptyWidget drawTransientView (st ^. #transient)
                 , drawEchoBuffer (st ^. #echoState)
                 ]

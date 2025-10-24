@@ -153,15 +153,17 @@ drawSearchBar st =
     str "Search Jobs: " <+> renderEditor (txt . T.unlines) True (st ^. #searchEditor)
 
 -- | Render the job list widget.
-drawJobList :: (Ord n, Show n) => SystemTime -> JobQueueState n -> Widget n
-drawJobList currentTime st =
-    borderWithLabel (txt . fmt $ "SLURM Queue (" +| length jobs |+ " jobs)") $
+drawJobList :: (Ord n, Show n) => SystemTime -> Maybe SystemTime -> JobQueueState n -> Widget n
+drawJobList currentTime lastUpdate st =
+    borderWithLabel (txt . fmt $ "SLURM Queue (" +| length jobs |+ " jobs, last update: " +| formatLastUpdateTime currentTime lastUpdate |+ " )") $
         renderMixedTabularList
             (defJobRenderers currentTime)
             (LstFcs True)
             (st ^. #jobListState)
   where
     jobs = listElements (st ^. #jobListState ^. #list)
+    formatLastUpdateTime _ Nothing = "never"
+    formatLastUpdateTime now (Just lastTime) = formatTime $ systemDiffTime lastTime now
 
 columnWidths :: WidthsPerRowKind Job Widths
 columnWidths = WsPerRK $ \(AvlW total) _ ->
