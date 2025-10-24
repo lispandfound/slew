@@ -70,9 +70,9 @@ drawJobPanel job =
     intToDouble :: Int -> Double
     intToDouble = fromIntegral
     tb :: Int
-    tb = 1024 * 1024 * 1024
+    tb = 1024 * 1024
     gb :: Int
-    gb = 1024 * 1024
+    gb = 1024
     humanReadable mem =
         fmt $
             if mem > tb
