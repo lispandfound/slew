@@ -18,6 +18,7 @@ import Brick (
  )
 import Brick.Widgets.Border (border)
 import qualified Data.Text as T
+import Fmt (fixedF, fmt, (+|), (|+))
 import Model.Job (
     ExitCode (..),
     Job (..),
@@ -25,7 +26,6 @@ import Model.Job (
     showWith,
  )
 import Optics.Operators ((^.))
-import Fmt (fmt, (+|), (|+), fixedF)
 
 import Control.Monad.Writer
 import Data.Time.Clock.System (systemToUTCTime)
@@ -70,11 +70,15 @@ drawJobPanel job =
     intToDouble :: Int -> Double
     intToDouble = fromIntegral
     tb :: Int
-    tb = 1024 * 1024 * 1024 * 1024
+    tb = 1024 * 1024 * 1024
     gb :: Int
-    gb = 1024 * 1024 * 1024
-    humanReadable mem = fmt $
-        if mem > tb then
-            fixedF 1 (intToDouble mem / intToDouble tb) +| " TB"
-        else if mem > gb then (fixedF 1 (intToDouble mem / intToDouble gb) +| " GB")
-        else "" +| mem |+ " MB"
+    gb = 1024 * 1024
+    humanReadable mem =
+        fmt $
+            if mem > tb
+                then
+                    fixedF 1 (intToDouble mem / intToDouble tb) +| " TB"
+                else
+                    if mem > gb
+                        then (fixedF 1 (intToDouble mem / intToDouble gb) +| " GB")
+                        else "" +| mem |+ " MB"
