@@ -34,6 +34,9 @@ triggerSqueue :: EventM n AppState ()
 triggerSqueue = do
     ch <- use #squeueChannel
     liftIO (writeBChan ch ())
+
+bumpUpdateTime :: EventM n AppState ()
+bumpUpdateTime = do
     curTime <- liftIO getSystemTime
     #lastUpdate .= pure curTime
 
@@ -141,7 +144,7 @@ handleEvent (VtyEvent e) = do
         Just (TR.Msg msg') -> #transient .= Nothing >> handleEvent (AppEvent msg')
         Just TR.Next -> pure ()
         _ -> zoom #jobQueueState (handleJobQueueEvent e)
-handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs)
+handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
 handleEvent (AppEvent (SortBy category)) = zoom #jobQueueState (updateSortKey (sortListByCat category))
 handleEvent (AppEvent (SlurmCommandSend msg)) = do
     job <- fmap selectedJob <$> preuse #jobQueueState
