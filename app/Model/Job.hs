@@ -99,7 +99,7 @@ normaliseDates job =
     normalise x = x
 
 convertTimeLimit :: Job -> Job
-convertTimeLimit = over #timeLimit (fmap (* 60)) -- Time limits appear to be in minutes rather seconds 
+convertTimeLimit = over #timeLimit (fmap (* 60)) -- Time limits appear to be in minutes rather seconds
 
 instance FromJSON Job where
     parseJSON = fmap (convertTimeLimit . normaliseDates) . genericParseJSON snakeCaseOptions
@@ -110,7 +110,7 @@ formatTime diff =
     let
         seconds = round diff :: Int
         days = seconds `div` 86400
-        hours = (seconds `mod` 86400)`div` 3600
+        hours = (seconds `mod` 86400) `div` 3600
         minutes = (seconds `mod` 3600) `div` 60
         secs = seconds `mod` 60
      in

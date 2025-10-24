@@ -26,10 +26,10 @@ import Model.Job (
  )
 import Optics.Operators ((^.))
 
+import Control.Monad.Writer
 import Data.Time.Clock.System (systemToUTCTime)
 import Data.Time.Format.ISO8601 (iso8601Show)
 import UI.Themes (jobLabel, jobState)
-import Control.Monad.Writer
 
 -- | Render detailed job panel
 drawJobPanel :: Job -> Widget n
@@ -44,8 +44,10 @@ drawJobPanel job =
         stateAttr stateName = jobState <> attrName (toString stateName)
         jobStateWidget = foldr (\stateName widget -> withAttr (stateAttr $ stateName) (txt stateName) <=> widget) emptyWidget (job ^. #jobState)
      in border . padBottom Max . padLeftRight 1 . vBox . execWriter $ do
-            tell [ hBox
-                    [ withAttr jobLabel (str "Job ID: ") , (txt . show $ job ^. #jobId)
+            tell
+                [ hBox
+                    [ withAttr jobLabel (str "Job ID: ")
+                    , (txt . show $ job ^. #jobId)
                     , withAttr jobLabel (str " State: ")
                     , jobStateWidget
                     ]
@@ -61,6 +63,5 @@ drawJobPanel job =
                 ]
             when ("COMPLETED" `elem` (job ^. #jobState) || "FAILED" `elem` (job ^. #jobState)) $
                 tell [labeledField "Exit Code" (T.intercalate " " $ job ^. #exitCode ^. #status)]
-            when ((not . T.null) (job ^. #stateReason) && (job ^. #stateReason /= "None")) $ 
+            when ((not . T.null) (job ^. #stateReason) && (job ^. #stateReason /= "None")) $
                 tell [labeledField "State Reason" (job ^. #stateReason)]
-
