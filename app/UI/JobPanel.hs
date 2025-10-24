@@ -25,6 +25,7 @@ import Model.Job (
     showWith,
  )
 import Optics.Operators ((^.))
+import Fmt (fmt, (+|), (|+), fixedF)
 
 import Control.Monad.Writer
 import Data.Time.Clock.System (systemToUTCTime)
@@ -56,7 +57,7 @@ drawJobPanel job =
                 , labeledField "Partition" (job ^. #partition)
                 , labeledField "Nodes" (job ^. #nodes)
                 , labeledField "CPUs" (showWith show $ job ^. #cpus)
-                , labeledField "Memory/Node" (showWith (\mem -> show mem <> " MB") (job ^. #memoryPerNode))
+                , labeledField "Memory/Node" (showWith humanReadable (job ^. #memoryPerNode))
                 , labeledField "Time Limit" (showWith formatTime $ job ^. #timeLimit)
                 , labeledField "Start Time" (showWith (toText . iso8601Show . systemToUTCTime) $ job ^. #startTime)
                 , labeledField "End Time" (showWith (toText . iso8601Show . systemToUTCTime) $ job ^. #endTime)
@@ -65,3 +66,15 @@ drawJobPanel job =
                 tell [labeledField "Exit Code" (T.intercalate " " $ job ^. #exitCode ^. #status)]
             when ((not . T.null) (job ^. #stateReason) && (job ^. #stateReason /= "None")) $
                 tell [labeledField "State Reason" (job ^. #stateReason)]
+  where
+    intToDouble :: Int -> Double
+    intToDouble = fromIntegral
+    tb :: Int
+    tb = 1024 * 1024 * 1024 * 1024
+    gb :: Int
+    gb = 1024 * 1024 * 1024
+    humanReadable mem = fmt $
+        if mem > tb then
+            fixedF 1 (intToDouble mem / intToDouble tb) +| " TB"
+        else if mem > gb then (fixedF 1 (intToDouble mem / intToDouble gb) +| " GB")
+        else "" +| mem |+ " MB"
