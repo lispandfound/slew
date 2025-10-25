@@ -28,7 +28,7 @@ import SQueue.Poller (squeueThread)
 import System.Environment.Blank (getEnv)
 import System.FilePath (combine)
 import UI.Echo (echo)
-import UI.Event (handleEventWithEcho)
+import UI.Event (handleEvent)
 import UI.SlurmCommand (SlurmCommandLogEntry (..), SlurmCommandLogState (..), startSlurmCommandListener)
 import UI.Themes (defaultTheme, loadTheme)
 import UI.View (drawApp)
@@ -41,7 +41,7 @@ app init' theme =
     App
         { appDraw = drawApp
         , appChooseCursor = showFirstCursor
-        , appHandleEvent = handleEventWithEcho
+        , appHandleEvent = handleEvent
         , appStartEvent = init'
         , appAttrMap = const (themeToAttrMap theme)
         }
