@@ -120,6 +120,7 @@ handleSQueueViewEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
     msg <- getFirst <$> (zoomTransient e)
     case msg of
         Just TR.Close -> #transient .= Nothing >> pure True
+        Just TR.Up -> pure True
         _ -> pure False
 handleSQueueViewEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
     #transient .= Just scontrolTransient >> pure True -- could parameterise this
