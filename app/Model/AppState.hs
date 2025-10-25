@@ -47,7 +47,7 @@ data AppState = AppState
     , showLog ::
         Bool
     , echoState :: EchoState
-    , view :: View
+    , view :: [View]
     }
     deriving (Generic)
 
@@ -72,5 +72,5 @@ initialState = do
             , currentTime = currentTime'
             , lastUpdate = Nothing
             , echoState = echoStateWith initialMessage
-            , view = SQueueView
+            , view = [SQueueView]
             }

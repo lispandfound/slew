@@ -167,6 +167,18 @@ isKeyPress :: BrickEvent Name SlewEvent -> Bool
 isKeyPress (VtyEvent (V.EvKey _ _)) = True
 isKeyPress _ = False
 
+
+pushView :: View -> EventM Name AppState ()
+pushView newView = #view %= (newView:)
+
+popView :: EventM Name AppState ()
+popView = #view %= drop 1
+
+haltIfNoFocus :: EventM Name AppState ()
+haltIfNoFocus = do
+    viewStack <- use #view
+    when (null viewStack) halt
+
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleEvent (AppEvent (SlurmCommandReceive output@(SlurmCommandLogEntry{result = Left _}))) = zoom #echoState (echo errorMessage) >> zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
   where
@@ -177,13 +189,15 @@ handleEvent (AppEvent Tick) = do
     #currentTime .= sysTime
 handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
+handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = pushView CommandLogView
 handleEvent e = do
     curView <- use #view
     handled <- case curView of
-        SQueueView -> handleSQueueViewEvent e
-        CommandLogView -> handleCommandLogViewEvent e
-        NodeView -> handleNodeViewEvent e
-    when (not handled && isEscape e) halt
+        (SQueueView:_) -> handleSQueueViewEvent e
+        (CommandLogView:_) -> handleCommandLogViewEvent e
+        (NodeView:_) -> handleNodeViewEvent e
+        [] -> pure False
+    when (not handled && isEscape e) (popView >> haltIfNoFocus)
     when (isKeyPress e) (zoom #echoState clear)
 
         
