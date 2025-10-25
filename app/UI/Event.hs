@@ -191,6 +191,7 @@ handleEvent (AppEvent Tick) = do
 handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = pushView CommandLogView
+handleEvent (VtyEvent (V.EvKey (V.KChar 'n') [V.MCtrl])) = pushView NodeView
 handleEvent e = do
     curView <- use #view
     handled <- case curView of
