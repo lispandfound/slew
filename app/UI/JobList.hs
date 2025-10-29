@@ -153,15 +153,17 @@ drawSearchBar st =
     str "Search Jobs: " <+> renderEditor (txt . T.unlines) True (st ^. #searchEditor)
 
 -- | Render the job list widget.
-drawJobList :: (Ord n, Show n) => SystemTime -> JobQueueState n -> Widget n
-drawJobList currentTime st =
-    borderWithLabel (txt . fmt $ "SLURM Queue (" +| length jobs |+ " jobs)") $
+drawJobList :: (Ord n, Show n) => SystemTime -> Maybe SystemTime -> JobQueueState n -> Widget n
+drawJobList currentTime lastUpdate st =
+    borderWithLabel (txt . fmt $ "SLURM Queue (" +| length jobs |+ " jobs, last update: " +| formatLastUpdateTime currentTime lastUpdate |+ " )") $
         renderMixedTabularList
             (defJobRenderers currentTime)
             (LstFcs True)
             (st ^. #jobListState)
   where
     jobs = listElements (st ^. #jobListState ^. #list)
+    formatLastUpdateTime _ Nothing = "never"
+    formatLastUpdateTime now (Just lastTime) = formatTime $ systemDiffTime lastTime now
 
 columnWidths :: WidthsPerRowKind Job Widths
 columnWidths = WsPerRK $ \(AvlW total) _ ->
@@ -184,13 +186,14 @@ cellRenderer currentTime (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
      in case ci of
             0 -> withAttr jobId . render . show $ job ^. #jobId
             1 -> render $ job ^. #name
-            2 -> render $ job ^. #account
-            3 -> styleAttribute . padRight Max . foldr (\st w -> (jobStateLabel st) <+> w) emptyWidget $ job ^. #jobState
-            4 ->
+            2 -> render $ job ^. #userName
+            3 -> render $ job ^. #account
+            4 -> styleAttribute . padRight Max . foldr (\st w -> (jobStateLabel st) <+> w) emptyWidget $ job ^. #jobState
+            5 ->
                 renderRunningTime
                     (job ^. #startTime)
                     currentTime
-            5 -> render $ (nodesFor job)
+            6 -> render $ (nodesFor job)
             _ -> emptyWidget
   where
     nodesFor :: Job -> Text
@@ -210,7 +213,7 @@ cellRenderer currentTime (LstFcs isFocused) (MxdCtxt _ (MColC (Ix ci))) job =
                     (padRight Max (txt st))
 
 columnHeaderNames :: Vector Text
-columnHeaderNames = Vec.fromList ["ID", "Name", "Account", "State", "Time", "Nodes"]
+columnHeaderNames = Vec.fromList ["ID", "Name", "User", "Account", "State", "Time", "Nodes"]
 
 columnHeaders :: MixedColHdr n Widths
 columnHeaders =

@@ -39,6 +39,7 @@ data AppState = AppState
     , scontrolLogState :: SlurmCommandLogState Name
     , squeueChannel :: BChan ()
     , currentTime :: SystemTime
+    , lastUpdate :: Maybe SystemTime
     , showLog ::
         Bool
     , echoState :: EchoState
@@ -64,5 +65,6 @@ initialState = do
             , scontrolLogState = scontrolLog SlurmCommandLogView scontrolCommandChannel
             , showLog = False
             , currentTime = currentTime'
+            , lastUpdate = Nothing
             , echoState = echoStateWith initialMessage
             }

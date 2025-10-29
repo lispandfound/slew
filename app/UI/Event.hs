@@ -35,6 +35,11 @@ triggerSqueue = do
     ch <- use #squeueChannel
     liftIO (writeBChan ch ())
 
+bumpUpdateTime :: EventM n AppState ()
+bumpUpdateTime = do
+    curTime <- liftIO getSystemTime
+    #lastUpdate .= pure curTime
+
 scontrolTransient :: TR.TransientState SlewEvent Name
 scontrolTransient =
     TR.menu "Job Control" $
@@ -124,11 +129,12 @@ handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
         (True, _) -> #showLog .= False
         (False, Just TR.Close) -> #transient .= Nothing
         _ -> halt
-handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [])) = halt
+handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
     #transient .= Just scontrolTransient -- could parameterise this
 handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = handleJobFile #standardOutput
 handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) = handleJobFile #standardError
+handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [V.MCtrl])) = triggerSqueue
 handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
     #transient .= Just sortTransient -- could parameterise this
 handleEvent (VtyEvent e) = do
@@ -138,7 +144,7 @@ handleEvent (VtyEvent e) = do
         Just (TR.Msg msg') -> #transient .= Nothing >> handleEvent (AppEvent msg')
         Just TR.Next -> pure ()
         _ -> zoom #jobQueueState (handleJobQueueEvent e)
-handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs)
+handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
 handleEvent (AppEvent (SortBy category)) = zoom #jobQueueState (updateSortKey (sortListByCat category))
 handleEvent (AppEvent (SlurmCommandSend msg)) = do
     job <- fmap selectedJob <$> preuse #jobQueueState
