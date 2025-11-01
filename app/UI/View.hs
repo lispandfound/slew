@@ -38,7 +38,6 @@ drawAppView (SQueueView : _) st =
         ]
     ]
 drawAppView (CommandLogView : _) st = [drawSlurmCommandLog (st ^. #scontrolLogState)]
-drawAppView (NodeView : _) st = [txt "Nothing here yet!"]
 drawAppView _ _ = [emptyWidget]
 
 drawApp :: AppState -> [Widget Name]
