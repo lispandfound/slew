@@ -45,7 +45,6 @@ data AppState = AppState
     , squeueChannel :: BChan ()
     , currentTime :: SystemTime
     , lastUpdate :: Maybe SystemTime
-    , showLog :: Bool
     , echoState :: EchoState
     , view :: NonEmpty View
     , options :: Options
@@ -69,7 +68,6 @@ initialState options = do
             , transient = Nothing
             , squeueChannel = squeueChannel'
             , scontrolLogState = scontrolLog SlurmCommandLogWidget scontrolCommandChannel
-            , showLog = False
             , currentTime = currentTime'
             , lastUpdate = Nothing
             , echoState = echoStateWith initialMessage

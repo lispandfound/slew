@@ -204,5 +204,5 @@ handleEvent e = do
         SQueueView -> handleSQueueViewEvent e
         CommandLogView -> handleCommandLogViewEvent e
         NodeView -> handleNodeViewEvent e
-    when (not handled) (handleGlobalEvent e)
+    unless handled (handleGlobalEvent e)
     when (isKeyPress e) (zoom #echoState clear)
