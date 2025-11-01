@@ -1,11 +1,13 @@
 module UI.Event (
-    handleEventWithEcho,
+    handleEvent,
 ) where
 
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, txt, zoom)
 import Brick.BChan (writeBChan)
 import Brick.Widgets.Core (withAttr)
+import Data.List.NonEmpty ((<|))
 import Data.Time.Clock.System (getSystemTime)
+import Fmt
 import qualified Graphics.Vty as V
 import Model.AppState (
     AppState (..),
@@ -13,6 +15,7 @@ import Model.AppState (
     Command (Cancel, Hold, Release, Resume, Suspend, Top),
     Name,
     SlewEvent (..),
+    View (..),
  )
 import Model.Job (
     Job (..),
@@ -108,11 +111,6 @@ zoomTransient e = do
             pure msg
         Nothing -> pure mempty
 
--- | Main event handler
-handleEventWithEcho :: BrickEvent Name SlewEvent -> EventM Name AppState ()
-handleEventWithEcho e@(VtyEvent (V.EvKey _ _)) = zoom #echoState clear >> handleEvent e
-handleEventWithEcho e = handleEvent e
-
 handleJobFile :: Lens' Job FilePath -> EventM Name AppState ()
 handleJobFile field = do
     mJob <- selectedJob <$> use #jobQueueState
@@ -121,40 +119,35 @@ handleJobFile field = do
         result <- tailFile (job ^. field) (opts ^. #tailTemplate)
         either (zoom #echoState . echo) (const (pure ())) result
 
-handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
-handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = #showLog %= not
-handleEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
-    msg <- getFirst <$> (zoomTransient e)
-    showingLog <- use #showLog
-
-    case (showingLog, msg) of
-        (True, _) -> #showLog .= False
-        (False, Just TR.Close) -> #transient .= Nothing
-        _ -> halt
-handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
-handleEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
-    #transient .= Just scontrolTransient -- could parameterise this
-handleEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = handleJobFile #standardOutput
-handleEvent (VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) = handleJobFile #standardError
-handleEvent (VtyEvent (V.EvKey (V.KChar 'r') [V.MCtrl])) = triggerSqueue
-handleEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
-    #transient .= Just sortTransient -- could parameterise this
-handleEvent (VtyEvent e) = do
+handleSQueueViewEvent :: BrickEvent Name SlewEvent -> EventM Name AppState Bool
+handleSQueueViewEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
     msg <- getFirst <$> (zoomTransient e)
     case msg of
-        Just TR.Close -> #transient .= Nothing
-        Just (TR.Msg msg') -> #transient .= Nothing >> handleEvent (AppEvent msg')
-        Just TR.Next -> pure ()
+        Just TR.Close -> #transient .= Nothing >> pure True
+        Just TR.Up -> pure True
+        _ -> pure False
+handleSQueueViewEvent (VtyEvent (V.EvKey (V.KChar 'c') [V.MCtrl])) =
+    #transient .= Just scontrolTransient >> pure True -- could parameterise this
+handleSQueueViewEvent (VtyEvent (V.EvKey (V.KChar 'o') [V.MCtrl])) = handleJobFile #standardOutput >> pure True
+handleSQueueViewEvent (VtyEvent (V.EvKey (V.KChar 'e') [V.MCtrl])) = handleJobFile #standardError >> pure True
+handleSQueueViewEvent (VtyEvent (V.EvKey (V.KChar 'r') [V.MCtrl])) = triggerSqueue >> pure True
+handleSQueueViewEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
+    #transient .= Just sortTransient >> pure True -- could parameterise this
+handleSQueueViewEvent (VtyEvent e) = do
+    msg <- getFirst <$> (zoomTransient e)
+    case msg of
+        Just TR.Close -> #transient .= Nothing >> pure True
+        Just (TR.Msg msg') -> #transient .= Nothing >> handleSQueueViewEvent (AppEvent msg')
+        Just TR.Next -> pure True
         _ -> zoom #jobQueueState (handleJobQueueEvent e)
-handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
-handleEvent (AppEvent (SortBy category)) = zoom #jobQueueState (updateSortKey (sortListByCat category))
-handleEvent (AppEvent (SlurmCommandSend msg)) = do
+handleSQueueViewEvent (AppEvent (SortBy category)) = zoom #jobQueueState (updateSortKey (sortListByCat category)) >> pure True
+handleSQueueViewEvent (AppEvent (SlurmCommandSend msg)) = do
     job <- fmap selectedJob <$> preuse #jobQueueState
     case join job of
         Just job' -> do
             let cmd = scontrolCommand msg job'
-            zoom #scontrolLogState (sendSlurmCommandCommand cmd)
-        Nothing -> pure ()
+            zoom #scontrolLogState (sendSlurmCommandCommand cmd) >> pure True
+        Nothing -> pure False
   where
     scontrolCommand :: Command -> Job -> SlurmCommandCmd
     scontrolCommand Cancel job = CancelJob [job ^. #jobId]
@@ -163,6 +156,40 @@ handleEvent (AppEvent (SlurmCommandSend msg)) = do
     scontrolCommand Hold job = HoldJob [job ^. #jobId]
     scontrolCommand Release job = ReleaseJob [job ^. #jobId]
     scontrolCommand Top job = TopJob [job ^. #jobId]
+handleSQueueViewEvent _ = pure False
+
+handleCommandLogViewEvent :: BrickEvent Name SlewEvent -> EventM Name AppState Bool
+handleCommandLogViewEvent = const (pure False)
+
+handleNodeViewEvent :: BrickEvent Name SlewEvent -> EventM Name AppState Bool
+handleNodeViewEvent = const (pure False)
+
+isKeyPress :: BrickEvent Name SlewEvent -> Bool
+isKeyPress (VtyEvent (V.EvKey _ _)) = True
+isKeyPress _ = False
+
+pushView :: View -> EventM Name AppState ()
+pushView newView = #view %= (newView <|)
+
+popView :: EventM Name AppState ()
+popView = #view %= tail'
+  where
+    -- tail' is a tail that does not change singletons to preserve the NonEmpty invariant.
+    tail' (x :| []) = x :| []
+    tail' (_ :| (y : ys)) = y :| ys
+
+haltIfSingleton :: EventM Name AppState ()
+haltIfSingleton = do
+    viewStack <- use #view
+    when ((null . tail) viewStack) halt
+
+handleGlobalEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
+handleGlobalEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
+handleGlobalEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = pushView CommandLogView
+handleGlobalEvent (VtyEvent (V.EvKey V.KEsc [])) = haltIfSingleton >> popView
+handleGlobalEvent _ = pure ()
+
+handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleEvent (AppEvent (SlurmCommandReceive output@(SlurmCommandLogEntry{result = Left _}))) = zoom #echoState (echo errorMessage) >> zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
   where
     errorMessage = "command failed, type C-l to see output"
@@ -170,4 +197,12 @@ handleEvent (AppEvent (SlurmCommandReceive output)) = zoom #scontrolLogState (lo
 handleEvent (AppEvent Tick) = do
     sysTime <- liftIO getSystemTime
     #currentTime .= sysTime
-handleEvent _ = pure ()
+handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
+handleEvent e = do
+    curView <- use #view
+    handled <- case head curView of
+        SQueueView -> handleSQueueViewEvent e
+        CommandLogView -> handleCommandLogViewEvent e
+        NodeView -> handleNodeViewEvent e
+    when (not handled) (handleGlobalEvent e)
+    when (isKeyPress e) (zoom #echoState clear)

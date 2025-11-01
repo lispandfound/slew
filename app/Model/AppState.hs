@@ -4,6 +4,7 @@ module Model.AppState (
     Command (..),
     Category (..),
     Name (..),
+    View (..),
     initialState,
 ) where
 
@@ -28,8 +29,11 @@ data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
 data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
 data SlewEvent = SQueueStatus [Job] | SlurmCommandSend Command | SlurmCommandReceive SlurmCommandLogEntry | SortBy Category | Tick deriving (Show)
 
-data Name = SearchEditor | JobListWidget | SlurmCommandLogView | TransientView
+data Name = SearchEditor | JobListWidget | SlurmCommandLogWidget | TransientWidget
     deriving (Eq, Ord, Show)
+
+data View = SQueueView | CommandLogView | NodeView
+    deriving (Eq, Show)
 
 ------------------------------------------------------------
 -- App State
@@ -41,9 +45,9 @@ data AppState = AppState
     , squeueChannel :: BChan ()
     , currentTime :: SystemTime
     , lastUpdate :: Maybe SystemTime
-    , showLog ::
-        Bool
+    , showLog :: Bool
     , echoState :: EchoState
+    , view :: NonEmpty View
     , options :: Options
     }
     deriving (Generic)
@@ -64,10 +68,11 @@ initialState options = do
             { jobQueueState = jobList SearchEditor JobListWidget
             , transient = Nothing
             , squeueChannel = squeueChannel'
-            , scontrolLogState = scontrolLog SlurmCommandLogView scontrolCommandChannel
+            , scontrolLogState = scontrolLog SlurmCommandLogWidget scontrolCommandChannel
             , showLog = False
             , currentTime = currentTime'
             , lastUpdate = Nothing
             , echoState = echoStateWith initialMessage
+            , view = SQueueView :| []
             , options = options
             }
