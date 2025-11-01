@@ -7,6 +7,7 @@ import Brick.BChan (writeBChan)
 import Brick.Widgets.Core (withAttr)
 import Data.List.NonEmpty ((<|))
 import Data.Time.Clock.System (getSystemTime)
+import Fmt
 import qualified Graphics.Vty as V
 import Model.AppState (
     AppState (..),
@@ -203,5 +204,6 @@ handleEvent e = do
         SQueueView -> handleSQueueViewEvent e
         CommandLogView -> handleCommandLogViewEvent e
         NodeView -> handleNodeViewEvent e
+    putTextLn . fmt $ "Did I handle it? " +| handled |+ ""
     when (not handled) (handleGlobalEvent e)
     when (isKeyPress e) (zoom #echoState clear)
