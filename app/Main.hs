@@ -55,7 +55,7 @@ options = Options <$> pollInterval <*> theme <*> tailCommand
   where
     pollInterval = option auto (long "interval" <> short 'i' <> help "Polling interval for squeue commands. Keep short to keep your admins happy. Does not affect output viewing." <> showDefault <> value 30 <> metavar "TIME (s)")
     theme = optional (option str (long "theme" <> short 't' <> help "Path to a custom theme file" <> showDefault <> metavar "FILE"))
-    tailCommand = option auto (long "tail" <> help "Tail command for C-o and C-e commands. Use %f as a placeholder for stdout/stderr files, e.g. 'tail +F %f'." <> value "less +F %f" <> showDefault <> metavar "COMMAND")
+    tailCommand = option auto (long "tail" <> help "Tail command for C-o and C-e commands. Use %f as a placeholder for stdout/stderr files." <> value "less +F %f" <> showDefault <> metavar "COMMAND")
 
 cli :: ParserInfo Options
 cli = info (options <**> helper) (fullDesc <> header "slew - Slurm for the rest of us.")
