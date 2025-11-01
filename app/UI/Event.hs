@@ -139,7 +139,7 @@ handleSQueueViewEvent (VtyEvent e) = do
         Just TR.Close -> #transient .= Nothing >> pure True
         Just (TR.Msg msg') -> #transient .= Nothing >> handleSQueueViewEvent (AppEvent msg')
         Just TR.Next -> pure True
-        _ -> zoom #jobQueueState (handleJobQueueEvent e) >> pure True
+        _ -> zoom #jobQueueState (handleJobQueueEvent e)
 handleSQueueViewEvent (AppEvent (SortBy category)) = zoom #jobQueueState (updateSortKey (sortListByCat category)) >> pure True
 handleSQueueViewEvent (AppEvent (SlurmCommandSend msg)) = do
     job <- fmap selectedJob <$> preuse #jobQueueState

@@ -223,7 +223,37 @@ columnHeaders =
         , height = ColHdrH 2
         }
 
-handleJobQueueEvent :: (Ord n, Show n) => V.Event -> EventM n (JobQueueState n) ()
-handleJobQueueEvent e@(V.EvKey V.KUp []) = zoom #jobListState (handleMixedListEvent e)
-handleJobQueueEvent e@(V.EvKey V.KDown []) = zoom #jobListState (handleMixedListEvent e)
-handleJobQueueEvent e = zoom #searchEditor (handleEditorEvent (VtyEvent e)) >> updateListState
+isEditorCommand :: V.Event -> Bool
+isEditorCommand (V.EvKey key mods) =
+    case (key, mods) of
+        (V.KEnter, []) -> True
+        (V.KDel, []) -> True
+        (V.KBS, []) -> True
+        (V.KHome, []) -> True
+        (V.KEnd, []) -> True
+        (V.KChar '<', [V.MMeta]) -> True
+        (V.KChar '>', [V.MMeta]) -> True
+        (V.KChar 'a', [V.MCtrl]) -> True
+        (V.KChar 'e', [V.MCtrl]) -> True
+        (V.KChar 'd', [V.MCtrl]) -> True
+        (V.KChar 'd', [V.MMeta]) -> True
+        (V.KChar 'k', [V.MCtrl]) -> True
+        (V.KChar 'u', [V.MCtrl]) -> True
+        (V.KChar 't', [V.MCtrl]) -> True
+        (V.KChar c, []) | c /= '\t' -> True
+        (V.KUp, []) -> True
+        (V.KDown, []) -> True
+        (V.KLeft, []) -> True
+        (V.KRight, []) -> True
+        (V.KChar 'b', [V.MCtrl]) -> True
+        (V.KChar 'f', [V.MCtrl]) -> True
+        (V.KChar 'b', [V.MMeta]) -> True
+        (V.KChar 'f', [V.MMeta]) -> True
+        _ -> False
+isEditorCommand (V.EvPaste _) = True
+isEditorCommand _ = False
+
+handleJobQueueEvent :: (Ord n, Show n) => V.Event -> EventM n (JobQueueState n) Bool
+handleJobQueueEvent e@(V.EvKey V.KUp []) = zoom #jobListState (handleMixedListEvent e) >> pure True
+handleJobQueueEvent e@(V.EvKey V.KDown []) = zoom #jobListState (handleMixedListEvent e) >> pure True
+handleJobQueueEvent e = zoom #searchEditor (handleEditorEvent (VtyEvent e)) >> updateListState >> pure (isEditorCommand e)
