@@ -13,7 +13,7 @@ import Model.AppState (
     Command (Cancel, Hold, Release, Resume, Suspend, Top),
     Name,
     SlewEvent (..),
-    View (..)
+    View (..),
  )
 import Model.Job (
     Job (..),
@@ -168,9 +168,8 @@ isKeyPress :: BrickEvent Name SlewEvent -> Bool
 isKeyPress (VtyEvent (V.EvKey _ _)) = True
 isKeyPress _ = False
 
-
 pushView :: View -> EventM Name AppState ()
-pushView newView = #view %= (newView:)
+pushView newView = #view %= (newView :)
 
 popView :: EventM Name AppState ()
 popView = #view %= drop 1
@@ -191,15 +190,12 @@ handleEvent (AppEvent Tick) = do
 handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
 handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
 handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = pushView CommandLogView
-handleEvent (VtyEvent (V.EvKey (V.KChar 'n') [V.MCtrl])) = pushView NodeView
 handleEvent e = do
     curView <- use #view
     handled <- case curView of
-        (SQueueView:_) -> handleSQueueViewEvent e
-        (CommandLogView:_) -> handleCommandLogViewEvent e
-        (NodeView:_) -> handleNodeViewEvent e
+        (SQueueView : _) -> handleSQueueViewEvent e
+        (CommandLogView : _) -> handleCommandLogViewEvent e
+        (NodeView : _) -> handleNodeViewEvent e
         [] -> pure False
     when (not handled && isEscape e) (popView >> haltIfNoFocus)
     when (isKeyPress e) (zoom #echoState clear)
-
-        
