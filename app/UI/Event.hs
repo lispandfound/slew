@@ -17,6 +17,7 @@ import Model.AppState (
 import Model.Job (
     Job (..),
  )
+import Model.Options (Options (tailTemplate))
 import Optics.Core (Lens')
 import Optics.Getter (view)
 import Optics.Operators ((^.))
@@ -116,7 +117,8 @@ handleJobFile :: Lens' Job FilePath -> EventM Name AppState ()
 handleJobFile field = do
     mJob <- selectedJob <$> use #jobQueueState
     for_ mJob $ \job -> do
-        result <- tailFile (job ^. field)
+        opts <- use #options
+        result <- tailFile (job ^. field) (opts ^. #tailTemplate)
         either (zoom #echoState . echo) (const (pure ())) result
 
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()

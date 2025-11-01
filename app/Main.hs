@@ -22,6 +22,7 @@ import Model.AppState (
     SlewEvent (SQueueStatus, SlurmCommandReceive, Tick),
     initialState,
  )
+import Model.Options
 import Optics.Operators ((^.))
 import Options.Applicative (Parser, ParserInfo, auto, execParser, fullDesc, header, help, helper, info, long, metavar, option, short, showDefault, str, value)
 import SQueue.Poller (squeueThread)
@@ -49,17 +50,12 @@ app init' theme =
 ------------------------------------------------------------
 -- Main
 
-data Options = Options
-    { pollInterval :: Int
-    , theme :: Maybe FilePath
-    }
-    deriving (Generic)
-
 options :: Parser Options
-options = Options <$> pollInterval <*> theme
+options = Options <$> pollInterval <*> theme <*> tailCommand
   where
     pollInterval = option auto (long "interval" <> short 'i' <> help "Polling interval for squeue commands. Keep short to keep your admins happy. Does not affect output viewing." <> showDefault <> value 30 <> metavar "TIME (s)")
     theme = optional (option str (long "theme" <> short 't' <> help "Path to a custom theme file" <> showDefault <> metavar "FILE"))
+    tailCommand = option auto (long "tail" <> help "Tail command for C-o and C-e commands. Use %f as a placeholder for stdout/stderr files, e.g. 'tail +F %f'." <> value "less +F %f" <> showDefault <> metavar "COMMAND")
 
 cli :: ParserInfo Options
 cli = info (options <**> helper) (fullDesc <> header "slew - Slurm for the rest of us.")
@@ -82,7 +78,7 @@ withAsyncs asyncs action = foldr (\async form -> withAsync async (\_ -> form)) a
 main :: IO ()
 main = do
     opts <- execParser cli
-    is <- initialState
+    is <- initialState opts
     eventChannel <- BC.newBChan 50
     slewConfigDirectory <- configDirectory
     let slewThemePath = (opts ^. #theme) <|> combine <$> slewConfigDirectory <*> pure "theme.ini"
