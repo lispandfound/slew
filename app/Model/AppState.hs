@@ -11,6 +11,7 @@ module Model.AppState (
 import Brick.BChan (BChan, newBChan)
 import Data.Time.Clock.System (SystemTime, getSystemTime)
 import Model.Job (Job)
+import Model.Options (Options)
 import Optics.Label ()
 import UI.Echo (EchoState, echoStateWith)
 import UI.JobList (JobQueueState, jobList)
@@ -44,10 +45,10 @@ data AppState = AppState
     , squeueChannel :: BChan ()
     , currentTime :: SystemTime
     , lastUpdate :: Maybe SystemTime
-    , showLog ::
-        Bool
+    , showLog :: Bool
     , echoState :: EchoState
     , view :: [View]
+    , options :: Options
     }
     deriving (Generic)
 
@@ -57,8 +58,8 @@ data AppState = AppState
 initialMessage :: Text
 initialMessage = "type C-c to interact with slurm jobs, C-l to view logs, C-s to sort, and C-o to tail job output"
 
-initialState :: IO AppState
-initialState = do
+initialState :: Options -> IO AppState
+initialState options = do
     scontrolCommandChannel <- newBChan 10
     squeueChannel' <- newBChan 10
     currentTime' <- getSystemTime
@@ -73,4 +74,5 @@ initialState = do
             , lastUpdate = Nothing
             , echoState = echoStateWith initialMessage
             , view = [SQueueView]
+            , options = options
             }
