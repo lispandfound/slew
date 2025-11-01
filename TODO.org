@@ -1,8 +1,8 @@
 #+title: Slew Project TODO
 * Backlog
-** TODO Log shell command outputs
-** TODO Report shell command errors
-
+** DONE Log shell command outputs
+** DONE Report shell command errors
+* Refactoring
 * Roadmap
 **  Tier 0 — Core SLURM Features
 *** DONE Job table
@@ -14,17 +14,17 @@ Modal or split-pane detail view conditionally shown in View based on selected jo
 *** DONE Cancel job
 Msg triggered on keypress, update triggers external IO via Cmd (calls scancel)
 ** Tier 1 — Low-Hanging UX Wins
-*** TODO Automatic Release Builds
+*** DONE Automatic Release Builds
 *** DONE Log view for commands
 Probably need an echo area
-*** TODO Properly tabulated list
+*** DONE Properly tabulated list
 *** TODO Resubmit/clone job
 Pressing key → emit Msg → handler constructs sbatch string and spawns a Cmd
 *** TODO Export to CSV
 Cmd that writes to file or clipboard, possibly triggered by Msg
 *** DONE Log preview (tail)
 Use Cmd to spawn tail process → output read into Msg → render in scrollable window
-*** TODO Pending reason
+*** DONE Pending reason
 On select or hover, fetch with Cmd, cached in state (Map JobId Reason)
 ** Tier 2 — Interactive and Composable
 *** TODO Live CPU/RAM on Job
@@ -35,7 +35,7 @@ Maintain a timestamped event log per job in model, render as a bar/timeline
 Managed like "named presets", a list of templates in model, pick with a list view
 *** TODO File outputs
 Use job metadata to show clickable filenames or paths → render preview on select
-*** TODO Interactive search bar
+*** DONE Interactive search bar
 Composable widget (like textbox) → on change, updates filter state in parent
 ** Tier 3 — State-Rich Components
 *** TODO Cluster grid view
