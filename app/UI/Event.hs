@@ -204,6 +204,5 @@ handleEvent e = do
         SQueueView -> handleSQueueViewEvent e
         CommandLogView -> handleCommandLogViewEvent e
         NodeView -> handleNodeViewEvent e
-    putTextLn . fmt $ "Did I handle it? " +| handled |+ ""
     when (not handled) (handleGlobalEvent e)
     when (isKeyPress e) (zoom #echoState clear)
