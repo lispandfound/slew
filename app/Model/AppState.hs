@@ -47,7 +47,7 @@ data AppState = AppState
     , lastUpdate :: Maybe SystemTime
     , showLog :: Bool
     , echoState :: EchoState
-    , view :: [View]
+    , view :: NonEmpty View
     , options :: Options
     }
     deriving (Generic)
@@ -73,6 +73,6 @@ initialState options = do
             , currentTime = currentTime'
             , lastUpdate = Nothing
             , echoState = echoStateWith initialMessage
-            , view = [SQueueView]
+            , view = SQueueView :| []
             , options = options
             }

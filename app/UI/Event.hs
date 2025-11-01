@@ -5,6 +5,7 @@ module UI.Event (
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, txt, zoom)
 import Brick.BChan (writeBChan)
 import Brick.Widgets.Core (withAttr)
+import Data.List.NonEmpty ((<|))
 import Data.Time.Clock.System (getSystemTime)
 import qualified Graphics.Vty as V
 import Model.AppState (
@@ -162,24 +163,30 @@ handleCommandLogViewEvent = const (pure False)
 handleNodeViewEvent :: BrickEvent Name SlewEvent -> EventM Name AppState Bool
 handleNodeViewEvent = const (pure False)
 
-isEscape :: BrickEvent Name SlewEvent -> Bool
-isEscape (VtyEvent (V.EvKey V.KEsc [])) = True
-isEscape _ = False
-
 isKeyPress :: BrickEvent Name SlewEvent -> Bool
 isKeyPress (VtyEvent (V.EvKey _ _)) = True
 isKeyPress _ = False
 
 pushView :: View -> EventM Name AppState ()
-pushView newView = #view %= (newView :)
+pushView newView = #view %= (newView <|)
 
 popView :: EventM Name AppState ()
-popView = #view %= drop 1
+popView = #view %= tail'
+  where
+    -- tail' is a tail that does not change singletons to preserve the NonEmpty invariant.
+    tail' (x :| []) = x :| []
+    tail' (_ :| (y : ys)) = y :| ys
 
-haltIfNoFocus :: EventM Name AppState ()
-haltIfNoFocus = do
+haltIfSingleton :: EventM Name AppState ()
+haltIfSingleton = do
     viewStack <- use #view
-    when (null viewStack) halt
+    when ((null . tail) viewStack) halt
+
+handleGlobalEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
+handleGlobalEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
+handleGlobalEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = pushView CommandLogView
+handleGlobalEvent (VtyEvent (V.EvKey V.KEsc [])) = haltIfSingleton >> popView
+handleGlobalEvent _ = pure ()
 
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleEvent (AppEvent (SlurmCommandReceive output@(SlurmCommandLogEntry{result = Left _}))) = zoom #echoState (echo errorMessage) >> zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
@@ -190,14 +197,11 @@ handleEvent (AppEvent Tick) = do
     sysTime <- liftIO getSystemTime
     #currentTime .= sysTime
 handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
-handleEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
-handleEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = pushView CommandLogView
 handleEvent e = do
     curView <- use #view
-    handled <- case curView of
-        (SQueueView : _) -> handleSQueueViewEvent e
-        (CommandLogView : _) -> handleCommandLogViewEvent e
-        (NodeView : _) -> handleNodeViewEvent e
-        [] -> pure False
-    when (not handled && isEscape e) (popView >> haltIfNoFocus)
+    handled <- case head curView of
+        SQueueView -> handleSQueueViewEvent e
+        CommandLogView -> handleCommandLogViewEvent e
+        NodeView -> handleNodeViewEvent e
+    when (not handled) (handleGlobalEvent e)
     when (isKeyPress e) (zoom #echoState clear)
