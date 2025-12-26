@@ -190,6 +190,14 @@ handleEvent (AppEvent (SlurmCommandReceive output)) = zoom #scontrolLogState (lo
 handleEvent (AppEvent Tick) = do
     sysTime <- liftIO getSystemTime
     #currentTime .= sysTime
+handleEvent (AppEvent (SQueueStatus output@(SlurmCommandResult{result = Left _}))) =
+    zoom #echoState (echo errorMessage)
+        >> zoom
+            #scontrolLogState
+            (logSlurmCommandEvent (void output))
+        >> bumpUpdateTime
+  where
+    errorMessage = "squeue --json failed, type C-l to see output"
 handleEvent (AppEvent (SQueueStatus (SlurmCommandResult{result = Right (SlurmResponse{jobs = jobs})}))) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
 handleEvent e = do
     curView <- use #view
