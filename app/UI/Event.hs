@@ -7,9 +7,9 @@ import Brick.BChan (writeBChan)
 import Brick.Widgets.Core (withAttr)
 import Data.List.NonEmpty ((<|))
 import Data.Time.Clock.System (getSystemTime)
-import Fmt
 import qualified Graphics.Vty as V
-import Logic.EventHandlers (Command (..), scontrolCommand)
+import Logic.EventHandlers (Command (..))
+import Logic.JobFiltering (sortListByCat)
 import Model.AppState (
     AppState (..),
     Category (..),
@@ -22,7 +22,6 @@ import Model.Job (
  )
 import Model.Options (Options (tailTemplate))
 import Optics.Core (Lens')
-import Optics.Getter (view)
 import Optics.Operators ((^.))
 import Optics.State (preuse, use)
 import Optics.State.Operators ((%=), (.=))
@@ -33,7 +32,6 @@ import UI.SlurmCommand (SlurmCommandCmd (..), SlurmCommandLogEntry (SlurmCommand
 import UI.Themes (header, transient)
 import UI.Transient (TransientMsg)
 import qualified UI.Transient as TR
-import Logic.JobFiltering (sortListByCat)
 
 triggerSqueue :: EventM n AppState ()
 triggerSqueue = do
