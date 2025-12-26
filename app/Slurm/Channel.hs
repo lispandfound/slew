@@ -12,14 +12,16 @@ import System.Exit (ExitCode (..))
 import System.IO (hClose)
 import System.Process
 
+data Stream = Stdout | Stderr
 data SlurmRequest b = SlurmRequest
     { cp :: CreateProcess
+    , read :: Stream
     , callback :: SlurmCommandResult ByteString -> b
     }
 
 worker :: BChan (SlurmRequest b) -> BChan b -> IO ()
 worker input output = forever $ do
-    SlurmRequest procSpec cb <- readBChan input
+    SlurmRequest procSpec stream cb <- readBChan input
     traceM "Receiving a command"
     -- Extract metadata for our data types
     let (commandName, commandArgs) = case cmdspec procSpec of
@@ -29,14 +31,16 @@ worker input output = forever $ do
     result <- withCreateProcess pSet $ \mOut mErr _ ph -> do
         traceM "Waiting for process"
         outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
-        errText <- liftIO $ maybe (return mempty) (fmap decodeUtf8 . hGetContents) mErr
+        errBytes <- liftIO $ maybe (return mempty) hGetContents mErr
         exitStatus <- liftIO $ waitForProcess ph
         traceM "Process done"
         traceM . fmt $ "Ran " +| commandName |+ " " +| unwordsF commandArgs
 
         traceM . fmt $ "Output: " +| (decodeUtf8 outBytes :: Text) |+ ""
-        traceM . fmt $ "Err: " +| errText |+ ""
-
+        traceM . fmt $ "Err: " +| (decodeUtf8 errBytes :: Text) |+ ""
+        let result = case stream of
+                Stdout -> outBytes
+                Stderr -> errBytes
         case exitStatus of
             ExitSuccess ->
                 return $
@@ -45,10 +49,10 @@ worker input output = forever $ do
                             { cmd = commandName
                             , args = commandArgs
                             , stdout = decodeUtf8 outBytes
-                            , stderr = errText
+                            , stderr = decodeUtf8 errBytes
                             }
                         )
-                        (Right outBytes)
+                        (Right result)
             ExitFailure code ->
                 return $
                     SlurmCommandResult
@@ -56,7 +60,7 @@ worker input output = forever $ do
                             { cmd = commandName
                             , args = commandArgs
                             , stdout = decodeUtf8 outBytes
-                            , stderr = errText
+                            , stderr = decodeUtf8 errBytes
                             }
                         )
                         (Left (ExecutionError code))
@@ -65,13 +69,17 @@ worker input output = forever $ do
 
     writeBChan output (cb result)
 
----
-
-runJson :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> (SlurmCommandResult a -> b) -> IO ()
-runJson chan process callback = writeBChan chan $ SlurmRequest process (callback . parseJson)
+runJsonFrom :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> Stream -> (SlurmCommandResult a -> b) -> IO ()
+runJsonFrom chan process stream callback = writeBChan chan $ SlurmRequest process stream (callback . parseJson)
   where
     parseJson :: (FromJSON a) => SlurmCommandResult ByteString -> SlurmCommandResult a
     parseJson = over #result join . fmap (first (DecodingError . toText) . eitherDecode . toLazy)
 
+runJsonErr :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> (SlurmCommandResult a -> b) -> IO ()
+runJsonErr chan process = runJsonFrom chan process Stderr
+
+runJson :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> (SlurmCommandResult a -> b) -> IO ()
+runJson chan process = runJsonFrom chan process Stdout
+
 runDiscard :: BChan (SlurmRequest a) -> CreateProcess -> (SlurmCommandResult () -> a) -> IO ()
-runDiscard chan process callback = writeBChan chan $ SlurmRequest process (callback . void)
+runDiscard chan process callback = writeBChan chan $ SlurmRequest process Stdout (callback . void)
