@@ -24,7 +24,7 @@ import Optics.Getter (view)
 import Optics.Operators ((^.))
 import Optics.State (preuse, use)
 import Optics.State.Operators ((%=), (.=))
-import Slurm.Channel (runDiscard, runJson)
+import Slurm.Channel (runDiscard, runJsonErr)
 import UI.Echo (clear, echo)
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (tailFile)
@@ -36,7 +36,7 @@ import qualified UI.Transient as TR
 triggerSqueue :: EventM n AppState ()
 triggerSqueue = do
     ch <- use #worker
-    liftIO (runJson ch squeue SQueueStatus)
+    liftIO (runJsonErr ch squeue SQueueStatus)
 
 bumpUpdateTime :: EventM n AppState ()
 bumpUpdateTime = do

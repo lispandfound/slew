@@ -26,7 +26,7 @@ import Model.Options (Options (Options, pollInterval, theme))
 import Model.SlurmCommand (squeue)
 import Optics.Operators ((^.))
 import Options.Applicative (Parser, ParserInfo, auto, execParser, fullDesc, header, help, helper, info, long, metavar, option, short, showDefault, str, value)
-import Slurm.Channel (runJson, worker)
+import Slurm.Channel (runJsonErr, worker)
 import System.Environment.Blank (getEnv)
 import System.FilePath (combine)
 import UI.Echo (echo)
@@ -89,7 +89,7 @@ main = do
     let slewThemePath = (opts ^. #theme) <|> combine <$> slewConfigDirectory <*> pure "theme.ini"
         asyncActions =
             [ tickThread (1 * seconds) (BC.writeBChan eventChannel Tick)
-            , tickThread (opts ^. #pollInterval * seconds) (runJson workerChannel squeue (SQueueStatus . traceShowId))
+            , tickThread (opts ^. #pollInterval * seconds) (runJsonErr workerChannel squeue (SQueueStatus . traceShowId))
             , worker workerChannel eventChannel
             ]
     themeOrErr <- maybe (pure . Right $ defaultTheme) loadTheme slewThemePath
