@@ -1,16 +1,18 @@
 module Slurm.Channel where
 
-import Brick.BChan
-import Control.Monad.Trans.Resource
+import Brick.BChan (BChan, readBChan, writeBChan)
 import Data.Aeson (FromJSON, eitherDecode)
 import Data.ByteString (hGetContents)
-import qualified Data.Text.Lazy.Encoding as TLE
-import Fmt
 import Model.SlurmCommand (SlurmCommandResult (..), SlurmContext (..), SlurmError (..))
 import Optics.Setter (over)
 import System.Exit (ExitCode (..))
-import System.IO (hClose)
-import System.Process
+import System.Process (
+    CmdSpec (RawCommand, ShellCommand),
+    CreateProcess (cmdspec, std_err, std_out),
+    StdStream (CreatePipe),
+    waitForProcess,
+    withCreateProcess,
+ )
 
 data Stream = Stdout | Stderr
 data SlurmRequest b = SlurmRequest
