@@ -29,6 +29,7 @@ worker input output = forever $ do
     result <- withCreateProcess pSet $ \mOut mErr _ ph -> do
         traceM "Waiting for process"
         exitStatus <- liftIO $ waitForProcess ph
+        traceM "Process done"
         outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
         errText <- liftIO $ maybe (return mempty) (fmap decodeUtf8 . hGetContents) mErr
         traceM . fmt $ "Ran " +| commandName |+ " " +| unwordsF commandArgs
