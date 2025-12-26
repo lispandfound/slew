@@ -25,21 +25,8 @@ worker input output = forever $ do
     let (commandName, commandArgs) = case cmdspec procSpec of
             ShellCommand s -> (s, [])
             RawCommand c a -> (c, a)
-
-    result <- runResourceT $ do
-        let pSet = procSpec{std_out = CreatePipe, std_err = CreatePipe}
-        (_, (mOut, mErr, _, ph)) <-
-            allocate
-                (createProcess pSet)
-                ( \(_, hout, herr, ph) -> do
-                    -- Ensure handles are closed and process is reaped
-                    maybe (return ()) hClose hout
-                    maybe (return ()) hClose herr
-                    traceM "closing handles!"
-                    terminateProcess ph
-                    _ <- waitForProcess ph
-                    return ()
-                )
+    let pSet = procSpec{std_out = CreatePipe, std_err = CreatePipe}
+    result <- withCreateProcess pSet $ \mOut mErr _ ph -> do
         traceM "Waiting for process"
         exitStatus <- liftIO $ waitForProcess ph
         outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
