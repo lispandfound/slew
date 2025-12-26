@@ -73,7 +73,7 @@ worker input output = forever $ do
 ---
 
 runJson :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> (SlurmCommandResult a -> b) -> IO ()
-runJson chan process callback = writeBChan chan $ SlurmRequest process (callback . parseJson)
+runJson chan process callback = (writeBChan chan . traceShow) $ SlurmRequest process (callback . parseJson)
   where
     parseJson :: (FromJSON a) => SlurmCommandResult LByteString -> SlurmCommandResult a
     parseJson = over #result join . fmap (first (DecodingError . toText) . eitherDecode)

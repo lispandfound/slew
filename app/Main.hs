@@ -22,7 +22,7 @@ import Model.AppState (
     SlewEvent (SQueueStatus, Tick),
     initialState,
  )
-import Model.Options
+import Model.Options (Options (Options, pollInterval, theme))
 import Model.SlurmCommand (squeue)
 import Optics.Operators ((^.))
 import Options.Applicative (Parser, ParserInfo, auto, execParser, fullDesc, header, help, helper, info, long, metavar, option, short, showDefault, str, value)
