@@ -30,9 +30,9 @@ worker input output = forever $ do
             RawCommand c a -> (c, a)
     let pSet = procSpec{std_out = CreatePipe, std_err = CreatePipe}
     result <- withCreateProcess pSet $ \mOut mErr _ ph -> do
-        outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
-        errBytes <- liftIO $ maybe (return mempty) hGetContents mErr
-        exitStatus <- liftIO $ waitForProcess ph
+        outBytes <- maybe (return mempty) hGetContents mOut
+        errBytes <- maybe (return mempty) hGetContents mErr
+        exitStatus <- waitForProcess ph
         let result = case stream of
                 Stdout -> outBytes
                 Stderr -> errBytes
