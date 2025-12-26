@@ -34,13 +34,15 @@ worker input output = forever $ do
                     -- Ensure handles are closed and process is reaped
                     maybe (return ()) hClose hout
                     maybe (return ()) hClose herr
+                    traceM "closing handles!"
+                    terminateProcess ph
                     _ <- waitForProcess ph
                     return ()
                 )
-        outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
-        errText <- liftIO $ maybe (return mempty) (fmap toText . hGetContents) mErr
 
         exitStatus <- liftIO $ waitForProcess ph
+        outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
+        errText <- liftIO $ maybe (return mempty) (fmap toText . hGetContents) mErr
 
         case exitStatus of
             ExitSuccess ->
