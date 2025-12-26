@@ -5,6 +5,7 @@ import Control.Monad.Trans.Resource
 import Data.Aeson (FromJSON, eitherDecode)
 import Data.ByteString.Lazy (hGetContents)
 import qualified Data.Text.Lazy.Encoding as TLE
+import Fmt
 import Model.SlurmCommand (SlurmCommandResult (..), SlurmContext (..), SlurmError (..))
 import Optics.Setter (over)
 import System.Exit (ExitCode (..))
@@ -42,7 +43,11 @@ worker input output = forever $ do
 
         exitStatus <- liftIO $ waitForProcess ph
         outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
-        errText <- liftIO $ maybe (return mempty) (fmap toText . hGetContents) mErr
+        errText <- liftIO $ maybe (return mempty) (fmap decodeUtf8 . hGetContents) mErr
+        traceM . fmt $ "Ran " +| commandName |+ " " +| unwordsF commandArgs
+
+        traceM . fmt $ "Output: " +| (decodeUtf8 outBytes :: Text) |+ ""
+        traceM . fmt $ "Err: " +| errText |+ ""
 
         case exitStatus of
             ExitSuccess ->
@@ -62,7 +67,7 @@ worker input output = forever $ do
                         ( SlurmContext
                             { cmd = commandName
                             , args = commandArgs
-                            , stdout = toText outBytes
+                            , stdout = decodeUtf8 outBytes
                             , stderr = errText
                             }
                         )
@@ -71,9 +76,6 @@ worker input output = forever $ do
     traceM "Sending output"
 
     writeBChan output (cb result)
-  where
-    -- Helper to safely decode UTF8 and convert to strict Text
-    toText = toStrict . TLE.decodeUtf8With (\_ _ -> Just ' ')
 
 ---
 
