@@ -1,7 +1,6 @@
 module Model.AppState (
     AppState (..),
     SlewEvent (..),
-    Command (..),
     Category (..),
     Name (..),
     View (..),
@@ -10,6 +9,8 @@ module Model.AppState (
 
 import Brick.BChan (BChan, newBChan)
 import Data.Time.Clock.System (SystemTime, getSystemTime)
+import Logic.EventHandlers (Command)
+import Logic.JobFiltering (Category (..))
 import Model.Job (Job)
 import Model.Options (Options)
 import Optics.Label ()
@@ -25,8 +26,6 @@ import qualified UI.Transient as TR
 ------------------------------------------------------------
 -- Event Messages
 
-data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
-data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
 data SlewEvent = SQueueStatus [Job] | SlurmCommandSend Command | SlurmCommandReceive SlurmCommandLogEntry | SortBy Category | Tick deriving (Show)
 
 data Name = SearchEditor | JobListWidget | SlurmCommandLogWidget | TransientWidget

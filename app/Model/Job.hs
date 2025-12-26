@@ -59,7 +59,7 @@ data ExitCode = ExitCode
     { status :: [Text]
     , returnCode :: Quantity Int
     }
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 instance FromJSON ExitCode where
     parseJSON = genericParseJSON snakeCaseOptions
@@ -83,7 +83,7 @@ data Job = Job
     , timeLimit :: Quantity DiffTime
     , userName :: Text
     }
-    deriving (Show, Generic)
+    deriving (Show, Eq, Generic)
 
 normaliseDates :: Job -> Job
 normaliseDates job =
