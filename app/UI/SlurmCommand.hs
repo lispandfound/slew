@@ -8,19 +8,11 @@ module UI.SlurmCommand (
     logSlurmCommandEvent,
 ) where
 
-import Brick (
-    EventM,
-    Padding (Pad),
-    ViewportType (Vertical),
-    Widget,
-    padLeft,
-    txt,
-    vBox,
-    viewport,
-    (<+>),
- )
+import Brick (EventM, Padding (Pad), ViewportType (Vertical), Widget, hBox, padLeft, txt, vBox, viewport, withAttr, (<+>))
 import Brick.Widgets.Border (borderWithLabel)
 import Brick.Widgets.Center (centerLayer)
+import Data.Char (isDigit)
+import Fmt
 import Model.SlurmCommand (
     SlurmCommandResult (..),
     SlurmContext (..),
@@ -28,6 +20,7 @@ import Model.SlurmCommand (
  )
 import Optics.Core ((^.))
 import Optics.State.Operators ((%=))
+import UI.Themes (jobId)
 
 data SlurmCommandLogState n = SlurmCommandLogState
     { log :: [SlurmCommandResult ()]
@@ -45,7 +38,7 @@ drawEntry res =
   where
     ctx = res ^. #context
 
-    commandLine = txt $ "$ " <> (toText $ ctx ^. #cmd) <> " " <> (unwords . map toText $ ctx ^. #args)
+    commandLine = (txt . fmt) ("$ " +| ctx ^. #cmd |+ " ") <+> (hBox . map argFmt) (ctx ^. #args)
 
     resultArea = case res ^. #result of
         -- On Execution Error, show the stderr
@@ -58,6 +51,7 @@ drawEntry res =
         Right _ ->
             let top20 = unlines . take 20 . lines $ (ctx ^. #stdout)
              in txt top20
+    argFmt arg = if all isDigit arg then (withAttr jobId . txt . toText) arg else (txt . toText) arg
 
 drawSlurmCommandLog :: (Ord n, Show n) => SlurmCommandLogState n -> Widget n
 drawSlurmCommandLog st =
