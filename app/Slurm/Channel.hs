@@ -22,22 +22,15 @@ data SlurmRequest b = SlurmRequest
 worker :: BChan (SlurmRequest b) -> BChan b -> IO ()
 worker input output = forever $ do
     SlurmRequest procSpec stream cb <- readBChan input
-    traceM "Receiving a command"
     -- Extract metadata for our data types
     let (commandName, commandArgs) = case cmdspec procSpec of
             ShellCommand s -> (s, [])
             RawCommand c a -> (c, a)
     let pSet = procSpec{std_out = CreatePipe, std_err = CreatePipe}
     result <- withCreateProcess pSet $ \mOut mErr _ ph -> do
-        traceM "Waiting for process"
         outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
         errBytes <- liftIO $ maybe (return mempty) hGetContents mErr
         exitStatus <- liftIO $ waitForProcess ph
-        traceM "Process done"
-        traceM . fmt $ "Ran " +| commandName |+ " " +| unwordsF commandArgs
-
-        traceM . fmt $ "Output: " +| (decodeUtf8 outBytes :: Text) |+ ""
-        traceM . fmt $ "Err: " +| (decodeUtf8 errBytes :: Text) |+ ""
         let result = case stream of
                 Stdout -> outBytes
                 Stderr -> errBytes
@@ -64,9 +57,6 @@ worker input output = forever $ do
                             }
                         )
                         (Left (ExecutionError code))
-
-    traceM "Sending output"
-
     writeBChan output (cb result)
 
 runJsonFrom :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> Stream -> (SlurmCommandResult a -> b) -> IO ()

@@ -89,7 +89,7 @@ main = do
     let slewThemePath = (opts ^. #theme) <|> combine <$> slewConfigDirectory <*> pure "theme.ini"
         asyncActions =
             [ tickThread (1 * seconds) (BC.writeBChan eventChannel Tick)
-            , tickThread (opts ^. #pollInterval * seconds) (runJsonErr workerChannel squeue (SQueueStatus . traceShowId))
+            , tickThread (opts ^. #pollInterval * seconds) (runJsonErr workerChannel squeue SQueueStatus)
             , worker workerChannel eventChannel
             ]
     themeOrErr <- maybe (pure . Right $ defaultTheme) loadTheme slewThemePath
