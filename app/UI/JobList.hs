@@ -47,6 +47,7 @@ import Brick.Widgets.TabularList.Mixed (
 
 import qualified Data.Text as T
 import qualified Graphics.Vty as V
+import Logic.JobFiltering (filterJobs)
 import Optics.Label ()
 import Optics.Operators ((^.))
 import Optics.State (use)
@@ -107,22 +108,6 @@ jobList editName listName =
         , allJobs = []
         , sortKey = Nothing
         }
-
-filterJobs :: Text -> [Job] -> [Job]
-filterJobs "" = id
-filterJobs searchTerm =
-    let searchLower = T.toLower searchTerm
-        matches :: Job -> Bool
-        matches job =
-            let fields =
-                    [ T.pack (show $ job ^. #jobId)
-                    , job ^. #name
-                    , job ^. #account
-                    ]
-                        <> job ^. #jobState
-                        <> [job ^. #partition]
-             in any (searchLower `T.isInfixOf`) $ map T.toLower fields
-     in filter matches
 
 updateSortKey :: (Ord n, Show n) => (Job -> Job -> Ordering) -> EventM n (JobQueueState n) ()
 updateSortKey key = #sortKey .= Just key >> updateListState

@@ -7,12 +7,12 @@ import Brick.BChan (writeBChan)
 import Brick.Widgets.Core (withAttr)
 import Data.List.NonEmpty ((<|))
 import Data.Time.Clock.System (getSystemTime)
-import Fmt
 import qualified Graphics.Vty as V
+import Logic.EventHandlers (Command (..))
+import Logic.JobFiltering (sortListByCat)
 import Model.AppState (
     AppState (..),
     Category (..),
-    Command (Cancel, Hold, Release, Resume, Suspend, Top),
     Name,
     SlewEvent (..),
     View (..),
@@ -22,7 +22,6 @@ import Model.Job (
  )
 import Model.Options (Options (tailTemplate))
 import Optics.Core (Lens')
-import Optics.Getter (view)
 import Optics.Operators ((^.))
 import Optics.State (preuse, use)
 import Optics.State.Operators ((%=), (.=))
@@ -92,15 +91,6 @@ sortTransient =
                 ]
             ]
 
-sortListByCat :: Category -> Job -> Job -> Ordering
-sortListByCat Account = comparing (view #account)
-sortListByCat CPUs = comparing (view #cpus)
-sortListByCat StartTime = comparing (view #startTime)
-sortListByCat EndTime = comparing (view #endTime)
-sortListByCat JobName = comparing (view #name)
-sortListByCat UserName = comparing (view #userName)
-sortListByCat Memory = comparing (view #memoryPerNode)
-
 zoomTransient :: V.Event -> EventM Name AppState (First (TransientMsg SlewEvent))
 zoomTransient e = do
     trMay <- use #transient
@@ -145,17 +135,17 @@ handleSQueueViewEvent (AppEvent (SlurmCommandSend msg)) = do
     job <- fmap selectedJob <$> preuse #jobQueueState
     case join job of
         Just job' -> do
-            let cmd = scontrolCommand msg job'
+            let cmd = makeSlurmCommand msg [job' ^. #jobId]
             zoom #scontrolLogState (sendSlurmCommandCommand cmd) >> pure True
         Nothing -> pure False
   where
-    scontrolCommand :: Command -> Job -> SlurmCommandCmd
-    scontrolCommand Cancel job = CancelJob [job ^. #jobId]
-    scontrolCommand Suspend job = SuspendJob [job ^. #jobId]
-    scontrolCommand Resume job = ResumeJob [job ^. #jobId]
-    scontrolCommand Hold job = HoldJob [job ^. #jobId]
-    scontrolCommand Release job = ReleaseJob [job ^. #jobId]
-    scontrolCommand Top job = TopJob [job ^. #jobId]
+    makeSlurmCommand :: Command -> [Int] -> SlurmCommandCmd
+    makeSlurmCommand Cancel ids = CancelJob ids
+    makeSlurmCommand Suspend ids = SuspendJob ids
+    makeSlurmCommand Resume ids = ResumeJob ids
+    makeSlurmCommand Hold ids = HoldJob ids
+    makeSlurmCommand Release ids = ReleaseJob ids
+    makeSlurmCommand Top ids = TopJob ids
 handleSQueueViewEvent _ = pure False
 
 handleCommandLogViewEvent :: BrickEvent Name SlewEvent -> EventM Name AppState Bool

@@ -54,23 +54,118 @@ extra-doc-files:    CHANGELOG.md
 
 executable slew
     ghc-options: -threaded -rtsopts -Wall -O2
-    -- Import common warning flags.
-    -- import:           warnings
     mixins:   base hiding (Prelude)
         , relude (Relude as Prelude)
         , relude
 
-    -- .hs or .lhs file containing the Main module.
     main-is:          Main.hs
+    other-modules: UI.Transient UI.View UI.Event SQueue.Poller UI.Poller UI.JobPanel UI.JobList UI.SlurmCommand UI.Echo UI.Themes SQueue.Command
 
-    -- Modules included in this executable, other than Main.
-    other-modules: Model.SQueue Model.Job UI.Transient Model.AppState UI.View UI.Event SQueue.Poller UI.Poller UI.JobPanel UI.JobList Model.SlurmCommand UI.SlurmCommand UI.Echo UI.Themes Model.Options
-
-    -- LANGUAGE extensions used by modules in this package.
     default-extensions: OverloadedStrings DeriveGeneric NoFieldSelectors DuplicateRecordFields OverloadedRecordDot OverloadedLabels
 
-    -- Other library packages from which modules are imported.
-    build-depends:    base >= 4.19.2.0, relude, brick, vector, vty, fmt, linear, aeson, vty-crossplatform, bytestring, process, time, rosezipper, aeson-casing, async, hinotify, text, stm, text-zipper, optparse-applicative, brick-tabular-list, optics-core, optics-extra, filepath, mtl
+    build-depends:    base >= 4.19.2.0
+                    , relude
+                    , slew
+                    , brick
+                    , vector
+                    , vty
+                    , fmt
+                    , linear
+                    , aeson
+                    , vty-crossplatform
+                    , bytestring
+                    , process
+                    , time
+                    , rosezipper
+                    , aeson-casing
+                    , async
+                    , hinotify
+                    , text
+                    , stm
+                    , text-zipper
+                    , optparse-applicative
+                    , brick-tabular-list
+                    , optics-core
+                    , optics-extra
+                    , filepath
+                    , mtl
 
-    -- Directories containing source files.
     hs-source-dirs:   app
+
+test-suite slew-test
+    ghc-options: -threaded -rtsopts -Wall
+    mixins:   base hiding (Prelude)
+        , relude (Relude as Prelude)
+        , relude
+
+    type:             exitcode-stdio-1.0
+    main-is:          Spec.hs
+    other-modules:    Logic.JobFilteringSpec
+                      Logic.EventHandlersSpec
+
+    default-extensions: OverloadedStrings DeriveGeneric NoFieldSelectors DuplicateRecordFields OverloadedRecordDot OverloadedLabels
+
+    build-depends:    base >= 4.19.2.0
+                    , relude
+                    , hspec
+                    , hspec-discover
+                    , QuickCheck
+                    , slew
+                    , vector
+                    , aeson
+                    , time
+                    , text
+                    , brick
+                    , vty
+
+    build-tool-depends: hspec-discover:hspec-discover
+
+    hs-source-dirs:   test
+    default-language: Haskell2010
+
+library
+    ghc-options: -Wall
+    mixins:   base hiding (Prelude)
+        , relude (Relude as Prelude)
+        , relude
+
+    exposed-modules:  Model.Job
+                    , Model.SQueue
+                    , Model.AppState
+                    , Model.Options
+                    , Model.AllocatedNode
+                    , Model.SlurmCommand
+                    , Logic.JobFiltering
+                    , Logic.EventHandlers
+                    , Types.SlurmAPI
+
+    default-extensions: OverloadedStrings DeriveGeneric NoFieldSelectors DuplicateRecordFields OverloadedRecordDot OverloadedLabels
+
+    build-depends:    base >= 4.19.2.0
+                    , relude
+                    , brick
+                    , vector
+                    , vty
+                    , fmt
+                    , linear
+                    , aeson
+                    , vty-crossplatform
+                    , bytestring
+                    , process
+                    , time
+                    , rosezipper
+                    , aeson-casing
+                    , async
+                    , hinotify
+                    , text
+                    , stm
+                    , text-zipper
+                    , optparse-applicative
+                    , brick-tabular-list
+                    , optics-core
+                    , optics-extra
+                    , filepath
+                    , mtl
+
+    hs-source-dirs:   app
+    default-language: Haskell2010
