@@ -3,7 +3,7 @@ module Slurm.Channel where
 import Brick.BChan
 import Control.Monad.Trans.Resource
 import Data.Aeson (FromJSON, eitherDecode)
-import Data.ByteString.Lazy (hGetContents)
+import Data.ByteString (hGetContents)
 import qualified Data.Text.Lazy.Encoding as TLE
 import Fmt
 import Model.SlurmCommand (SlurmCommandResult (..), SlurmContext (..), SlurmError (..))
@@ -14,7 +14,7 @@ import System.Process
 
 data SlurmRequest b = SlurmRequest
     { cp :: CreateProcess
-    , callback :: SlurmCommandResult LByteString -> b
+    , callback :: SlurmCommandResult ByteString -> b
     }
 
 worker :: BChan (SlurmRequest b) -> BChan b -> IO ()
@@ -28,10 +28,10 @@ worker input output = forever $ do
     let pSet = procSpec{std_out = CreatePipe, std_err = CreatePipe}
     result <- withCreateProcess pSet $ \mOut mErr _ ph -> do
         traceM "Waiting for process"
-        exitStatus <- liftIO $ waitForProcess ph
-        traceM "Process done"
         outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
         errText <- liftIO $ maybe (return mempty) (fmap decodeUtf8 . hGetContents) mErr
+        exitStatus <- liftIO $ waitForProcess ph
+        traceM "Process done"
         traceM . fmt $ "Ran " +| commandName |+ " " +| unwordsF commandArgs
 
         traceM . fmt $ "Output: " +| (decodeUtf8 outBytes :: Text) |+ ""
@@ -70,8 +70,8 @@ worker input output = forever $ do
 runJson :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> (SlurmCommandResult a -> b) -> IO ()
 runJson chan process callback = writeBChan chan $ SlurmRequest process (callback . parseJson)
   where
-    parseJson :: (FromJSON a) => SlurmCommandResult LByteString -> SlurmCommandResult a
-    parseJson = over #result join . fmap (first (DecodingError . toText) . eitherDecode)
+    parseJson :: (FromJSON a) => SlurmCommandResult ByteString -> SlurmCommandResult a
+    parseJson = over #result join . fmap (first (DecodingError . toText) . eitherDecode . toLazy)
 
 runDiscard :: BChan (SlurmRequest a) -> CreateProcess -> (SlurmCommandResult () -> a) -> IO ()
 runDiscard chan process callback = writeBChan chan $ SlurmRequest process (callback . void)
