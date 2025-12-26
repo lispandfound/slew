@@ -47,7 +47,7 @@ bumpUpdateTime = do
 scontrolTransient :: TR.TransientState SlewEvent Name
 scontrolTransient =
     TR.menu "Job Control" $
-        TR.horizontalLayout $
+        TR.horizontalLayout
             [ TR.submenu 's' "State Control" $
                 TR.horizontalLayout
                     [ TR.verticalLayoutWithLabel
