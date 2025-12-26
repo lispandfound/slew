@@ -18,6 +18,7 @@ import Model.Job (
     Job (..),
  )
 import Model.Options (Options (tailTemplate))
+import Model.SQueue (SlurmResponse (..))
 import Model.SlurmCommand (Command (Cancel, Hold, Resume, Suspend, Top), SlurmCommandResult (..), slurm, squeue)
 import Optics.Core (Lens')
 import Optics.Getter (view)
@@ -189,7 +190,7 @@ handleEvent (AppEvent (SlurmCommandReceive output)) = zoom #scontrolLogState (lo
 handleEvent (AppEvent Tick) = do
     sysTime <- liftIO getSystemTime
     #currentTime .= sysTime
-handleEvent (AppEvent (SQueueStatus (SlurmCommandResult{result = Right jobs}))) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
+handleEvent (AppEvent (SQueueStatus (SlurmCommandResult{result = Right (SlurmResponse{jobs = jobs})}))) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
 handleEvent e = do
     curView <- use #view
     handled <- case head curView of

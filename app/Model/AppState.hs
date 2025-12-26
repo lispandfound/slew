@@ -10,8 +10,8 @@ module Model.AppState (
 
 import Brick.BChan (BChan)
 import Data.Time.Clock.System (SystemTime, getSystemTime)
-import Model.Job (Job)
 import Model.Options (Options)
+import Model.SQueue (SlurmResponse)
 import Model.SlurmCommand (Command (..), SlurmCommandResult (..))
 import Optics.Label ()
 import Slurm.Channel (SlurmRequest)
@@ -27,7 +27,7 @@ import qualified UI.Transient as TR
 -- Event Messages
 
 data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
-data SlewEvent = SQueueStatus (SlurmCommandResult [Job]) | SlurmCommandSend Command | SlurmCommandReceive (SlurmCommandResult ()) | SortBy Category | Tick deriving (Show)
+data SlewEvent = SQueueStatus (SlurmCommandResult SlurmResponse) | SlurmCommandSend Command | SlurmCommandReceive (SlurmCommandResult ()) | SortBy Category | Tick deriving (Show)
 data Name = SearchEditor | JobListWidget | SlurmCommandLogWidget | TransientWidget
     deriving (Eq, Ord, Show)
 
