@@ -19,7 +19,7 @@ data SlurmRequest b = SlurmRequest
 worker :: BChan (SlurmRequest b) -> BChan b -> IO ()
 worker input output = forever $ do
     SlurmRequest procSpec cb <- readBChan input
-    traceIO "Receiving a command"
+    traceM "Receiving a command"
     -- Extract metadata for our data types
     let (commandName, commandArgs) = case cmdspec procSpec of
             ShellCommand s -> (s, [])
@@ -66,7 +66,7 @@ worker input output = forever $ do
                         )
                         (Left (ExecutionError code))
 
-    traceIO "Sending output"
+    traceM "Sending output"
 
     writeBChan output (cb result)
   where
