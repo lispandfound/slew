@@ -19,18 +19,18 @@ import Graphics.Vty.CrossPlatform (mkVty)
 import Model.AppState (
     AppState (..),
     Name,
-    SlewEvent (SQueueStatus, SlurmCommandReceive, Tick),
+    SlewEvent (SQueueStatus, Tick),
     initialState,
  )
 import Model.Options
 import Optics.Operators ((^.))
 import Options.Applicative (Parser, ParserInfo, auto, execParser, fullDesc, header, help, helper, info, long, metavar, option, short, showDefault, str, value)
-import SQueue.Poller (squeueThread)
+import Slurm.Channel (runJson, worker)
 import System.Environment.Blank (getEnv)
 import System.FilePath (combine)
+import System.Process (proc)
 import UI.Echo (echo)
 import UI.Event (handleEvent)
-import UI.SlurmCommand (SlurmCommandLogEntry (..), SlurmCommandLogState (..), startSlurmCommandListener)
 import UI.Themes (defaultTheme, loadTheme)
 import UI.View (drawApp)
 
@@ -60,8 +60,8 @@ options = Options <$> pollInterval <*> theme <*> tailCommand
 cli :: ParserInfo Options
 cli = info (options <**> helper) (fullDesc <> header "slew - Slurm for the rest of us.")
 
-tickThread :: IO () -> IO ()
-tickThread callback = forever (callback >> threadDelay 1_000_000)
+tickThread :: Int -> IO () -> IO ()
+tickThread delay callback = forever (callback >> threadDelay delay)
 
 configDirectory :: IO (Maybe FilePath)
 configDirectory = do
@@ -73,19 +73,24 @@ configDirectory = do
     return $ combine <$> config <*> pure "slew"
 
 withAsyncs :: [IO a] -> IO b -> IO b
-withAsyncs asyncs action = foldr (\async form -> withAsync async (\_ -> form)) action asyncs
+withAsyncs asyncs action = foldr (\async form -> withAsync async (const form)) action asyncs
+
+seconds :: Int
+seconds = 1_000_000
 
 main :: IO ()
 main = do
     opts <- execParser cli
-    is <- initialState opts
     eventChannel <- BC.newBChan 50
+    workerChannel <- BC.newBChan 50
+
+    is <- initialState workerChannel opts
     slewConfigDirectory <- configDirectory
     let slewThemePath = (opts ^. #theme) <|> combine <$> slewConfigDirectory <*> pure "theme.ini"
         asyncActions =
-            [ tickThread (BC.writeBChan eventChannel Tick)
-            , squeueThread (opts ^. #pollInterval) (is ^. #squeueChannel) (BC.writeBChan eventChannel . SQueueStatus)
-            , startSlurmCommandListener (is ^. #scontrolLogState ^. #chan) (\cmd output -> BC.writeBChan eventChannel (SlurmCommandReceive (SlurmCommandLogEntry cmd output)))
+            [ tickThread (1 * seconds) (BC.writeBChan eventChannel Tick)
+            , tickThread (opts ^. #pollInterval * seconds) (runJson workerChannel (proc "squeue" ["--json"]) SQueueStatus)
+            , worker workerChannel eventChannel
             ]
     themeOrErr <- maybe (pure . Right $ defaultTheme) loadTheme slewThemePath
     withAsyncs asyncActions $ do

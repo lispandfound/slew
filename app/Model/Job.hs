@@ -114,4 +114,4 @@ formatTime diff =
         minutes = (seconds `mod` 3600) `div` 60
         secs = seconds `mod` 60
      in
-        (if days > 0 then (padLeftF 2 '0' days +| "-") else "") +| padLeftF 2 '0' hours |+ ":" +| padLeftF 2 '0' minutes |+ ":" +| padLeftF 2 '0' secs |+ ""
+        (if days > 0 then padLeftF 2 '0' days +| "-" else "") +| padLeftF 2 '0' hours |+ ":" +| padLeftF 2 '0' minutes |+ ":" +| padLeftF 2 '0' secs |+ ""
