@@ -28,10 +28,6 @@ data SlurmCommandLogState n = SlurmCommandLogState
     }
     deriving (Generic)
 
--------------------------------------------------------------------------------
--- UI Drawing
--------------------------------------------------------------------------------
-
 drawEntry :: SlurmCommandResult () -> Widget n
 drawEntry res =
     vBox [commandLine, padLeft (Pad 2) resultArea]
@@ -41,13 +37,10 @@ drawEntry res =
     commandLine = (txt . fmt) ("$ " +| ctx ^. #cmd |+ " ") <+> (hBox . map argFmt) (ctx ^. #args)
 
     resultArea = case res ^. #result of
-        -- On Execution Error, show the stderr
         Left (ExecutionError ec) ->
             txt ("[Exit " <> show ec <> "] ") <+> txt (ctx ^. #stderr)
-        -- On Parsing Error, show the error message and the full stdout
         Left (DecodingError err) ->
             txt "[Parse Error] " <+> txt err <+> txt "\n" <+> txt (ctx ^. #stdout)
-        -- On Success, show the first 20 lines of stdout
         Right _ ->
             let top20 = unlines . take 20 . lines $ (ctx ^. #stderr) <> "\n" <> (ctx ^. #stdout)
              in txt top20
@@ -59,10 +52,6 @@ drawSlurmCommandLog st =
         borderWithLabel (txt "Slurm Command Log") $
             viewport (st ^. #name) Vertical . vBox $
                 map drawEntry (reverse $ st ^. #log)
-
--------------------------------------------------------------------------------
--- State Management
--------------------------------------------------------------------------------
 
 scontrolLog :: n -> SlurmCommandLogState n
 scontrolLog name' =
