@@ -49,7 +49,7 @@ drawEntry res =
             txt "[Parse Error] " <+> txt err <+> txt "\n" <+> txt (ctx ^. #stdout)
         -- On Success, show the first 20 lines of stdout
         Right _ ->
-            let top20 = unlines . take 20 . lines $ (ctx ^. #stdout)
+            let top20 = unlines . take 20 . lines $ (ctx ^. #stderr) <> "\n" <> (ctx ^. #stdout)
              in txt top20
     argFmt arg = if all isDigit arg then (withAttr jobId . txt . toText) arg else (txt . toText) arg
 
