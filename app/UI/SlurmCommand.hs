@@ -42,8 +42,8 @@ drawEntry res =
         Left (DecodingError err) ->
             txt "[Parse Error] " <+> txt err <+> txt "\n" <+> txt (ctx ^. #stdout)
         Right _ ->
-            let top20 = unlines . take 20 . lines $ (ctx ^. #stderr) <> "\n" <> (ctx ^. #stdout)
-             in txt top20
+            txt . unlines . take 20 . lines $ (ctx ^. #stderr) <> "\n" <> (ctx ^. #stdout)
+
     argFmt arg = if all isDigit arg then (withAttr jobId . txt . toText) arg else (txt . toText) arg
 
 drawSlurmCommandLog :: (Ord n, Show n) => SlurmCommandLogState n -> Widget n
