@@ -40,7 +40,7 @@ worker input output = forever $ do
                     _ <- waitForProcess ph
                     return ()
                 )
-
+        traceM "Waiting for process"
         exitStatus <- liftIO $ waitForProcess ph
         outBytes <- liftIO $ maybe (return mempty) hGetContents mOut
         errText <- liftIO $ maybe (return mempty) (fmap decodeUtf8 . hGetContents) mErr
