@@ -1,73 +1,46 @@
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Model.SlurmCommand (
-    SlurmCommandError (..),
-    SlurmCommandOutput (..),
-    cancelJob,
-    requeueJob,
-    requeueHoldJob,
-    holdJob,
-    userHoldJob,
-    releaseJob,
-    resumeJob,
-    suspendJob,
-    topJob,
-    notifyJob,
-    writeBatchScript,
-    waitJob,
-    runSlurmCommand,
+    SlurmCommandResult (..),
+    SlurmError (..),
+    SlurmContext (..),
+    Command (..),
+    slurm,
+    squeue,
 ) where
 
-import System.Exit (ExitCode (..))
-import System.Process (readProcessWithExitCode)
+import Optics.Label ()
+import System.Process (CreateProcess, proc)
 
-data SlurmCommandError = SlurmCommandError {cmd :: String, args :: [String], exitCode :: Int, stdout :: String, stderr :: String} deriving (Show)
-data SlurmCommandOutput = SlurmCommandOutput {cmd :: String, args :: [String], stdout :: String, stderr :: String} deriving (Show)
+data SlurmError
+    = ExecutionError {exitCode :: Int}
+    | DecodingError {parseError :: Text}
+    deriving (Show, Generic)
 
-cancelJob :: [Int] -> IO (Either SlurmCommandError SlurmCommandOutput)
-cancelJob ids = runShell "scancel" (map show ids)
+data SlurmContext = SlurmContext
+    { cmd :: String
+    , args :: [String]
+    , stdout :: Text
+    , stderr :: Text
+    }
+    deriving (Show, Generic)
 
-requeueJob :: Int -> IO (Either SlurmCommandError SlurmCommandOutput)
-requeueJob jid = runSlurmCommand ["requeue", show jid]
+data SlurmCommandResult a = SlurmCommandResult
+    { context :: SlurmContext
+    , result :: Either SlurmError a
+    }
+    deriving (Show, Generic, Functor)
 
-requeueHoldJob :: Int -> IO (Either SlurmCommandError SlurmCommandOutput)
-requeueHoldJob jid = runSlurmCommand ["requeuehold", show jid]
+data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
 
-holdJob :: [Int] -> IO (Either SlurmCommandError SlurmCommandOutput)
-holdJob ids = runSlurmCommand $ ["hold"] <> map show ids
+slurm :: Command -> Int -> CreateProcess
+slurm Cancel job = proc "scancel" [show job]
+slurm Suspend job = proc "scontrol" ["suspend", show job]
+slurm Resume job = proc "scontrol" ["resume", show job]
+slurm Hold job = proc "scontrol" ["hold", show job]
+slurm Release job = proc "scontrol" ["release", show job]
+slurm Top job = proc "scontrol" ["top", show job]
 
-userHoldJob :: [Int] -> IO (Either SlurmCommandError SlurmCommandOutput)
-userHoldJob ids = runSlurmCommand $ ["uhold"] <> map show ids
-
-releaseJob :: [Int] -> IO (Either SlurmCommandError SlurmCommandOutput)
-releaseJob ids = runSlurmCommand $ ["release"] <> map show ids
-
-resumeJob :: [Int] -> IO (Either SlurmCommandError SlurmCommandOutput)
-resumeJob ids = runSlurmCommand $ ["resume"] <> map show ids
-
-suspendJob :: [Int] -> IO (Either SlurmCommandError SlurmCommandOutput)
-suspendJob ids = runSlurmCommand $ ["suspend"] <> map show ids
-
-topJob :: [Int] -> IO (Either SlurmCommandError SlurmCommandOutput)
-topJob ids = runSlurmCommand $ ["top"] <> map show ids
-
-notifyJob :: Int -> String -> IO (Either SlurmCommandError SlurmCommandOutput)
-notifyJob jid msg = runSlurmCommand ["notify", show jid, msg]
-
-writeBatchScript :: Int -> Maybe FilePath -> IO (Either SlurmCommandError SlurmCommandOutput)
-writeBatchScript jid fname = runSlurmCommand $ ["write", "batch_script", show jid] <> maybeToList fname
-
-waitJob :: Int -> IO (Either SlurmCommandError SlurmCommandOutput)
-waitJob jid = runSlurmCommand ["wait_job", show jid]
-
--- | Run an SlurmCommand command and return either error or output.
-runSlurmCommand :: [String] -> IO (Either SlurmCommandError SlurmCommandOutput)
-runSlurmCommand = runShell "scontrol"
-
-runShell :: String -> [String] -> IO (Either SlurmCommandError SlurmCommandOutput)
-runShell cmd' args = do
-    (code, out, err) <- readProcessWithExitCode cmd' args ""
-    pure $ case code of
-        ExitSuccess -> Right (SlurmCommandOutput cmd' args out err)
-        ExitFailure num -> Left (SlurmCommandError cmd' args num out err)
+squeue :: CreateProcess
+squeue = proc "squeue" ["--json"]

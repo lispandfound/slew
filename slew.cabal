@@ -64,10 +64,10 @@ executable slew
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Model.SQueue Model.Job UI.Transient Model.AppState UI.View UI.Event SQueue.Poller UI.Poller UI.JobPanel UI.JobList Model.SlurmCommand UI.SlurmCommand UI.Echo UI.Themes Model.Options
+    other-modules: Model.SQueue Model.Job UI.Transient Model.AppState UI.View UI.Event Slurm.Channel UI.Poller UI.JobPanel UI.JobList Model.SlurmCommand UI.SlurmCommand UI.Echo UI.Themes Model.Options
 
     -- LANGUAGE extensions used by modules in this package.
-    default-extensions: OverloadedStrings DeriveGeneric NoFieldSelectors DuplicateRecordFields OverloadedRecordDot OverloadedLabels
+    default-extensions: OverloadedStrings DeriveGeneric NoFieldSelectors DuplicateRecordFields OverloadedRecordDot OverloadedLabels LambdaCase RecordWildCards
 
     -- Other library packages from which modules are imported.
     build-depends:    base >= 4.19.2.0, relude, brick, vector, vty, fmt, linear, aeson, vty-crossplatform, bytestring, process, time, rosezipper, aeson-casing, async, hinotify, text, stm, text-zipper, optparse-applicative, brick-tabular-list, optics-core, optics-extra, filepath, mtl

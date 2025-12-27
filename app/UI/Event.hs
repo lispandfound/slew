@@ -3,16 +3,13 @@ module UI.Event (
 ) where
 
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, txt, zoom)
-import Brick.BChan (writeBChan)
 import Brick.Widgets.Core (withAttr)
 import Data.List.NonEmpty ((<|))
 import Data.Time.Clock.System (getSystemTime)
-import Fmt
 import qualified Graphics.Vty as V
 import Model.AppState (
     AppState (..),
     Category (..),
-    Command (Cancel, Hold, Release, Resume, Suspend, Top),
     Name,
     SlewEvent (..),
     View (..),
@@ -21,23 +18,26 @@ import Model.Job (
     Job (..),
  )
 import Model.Options (Options (tailTemplate))
+import Model.SQueue (SlurmResponse (..))
+import Model.SlurmCommand (Command (Cancel, Hold, Resume, Suspend, Top), SlurmCommandResult (..), slurm, squeue)
 import Optics.Core (Lens')
 import Optics.Getter (view)
 import Optics.Operators ((^.))
 import Optics.State (preuse, use)
 import Optics.State.Operators ((%=), (.=))
+import Slurm.Channel (runDiscard, runJsonErr)
 import UI.Echo (clear, echo)
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
 import UI.Poller (tailFile)
-import UI.SlurmCommand (SlurmCommandCmd (..), SlurmCommandLogEntry (SlurmCommandLogEntry, result), logSlurmCommandEvent, sendSlurmCommandCommand)
+import UI.SlurmCommand (logSlurmCommandEvent)
 import UI.Themes (header, transient)
 import UI.Transient (TransientMsg)
 import qualified UI.Transient as TR
 
 triggerSqueue :: EventM n AppState ()
 triggerSqueue = do
-    ch <- use #squeueChannel
-    liftIO (writeBChan ch ())
+    ch <- use #worker
+    liftIO (runJsonErr ch squeue SQueueStatus)
 
 bumpUpdateTime :: EventM n AppState ()
 bumpUpdateTime = do
@@ -47,7 +47,7 @@ bumpUpdateTime = do
 scontrolTransient :: TR.TransientState SlewEvent Name
 scontrolTransient =
     TR.menu "Job Control" $
-        TR.horizontalLayout $
+        TR.horizontalLayout
             [ TR.submenu 's' "State Control" $
                 TR.horizontalLayout
                     [ TR.verticalLayoutWithLabel
@@ -121,7 +121,7 @@ handleJobFile field = do
 
 handleSQueueViewEvent :: BrickEvent Name SlewEvent -> EventM Name AppState Bool
 handleSQueueViewEvent (VtyEvent e@(V.EvKey V.KEsc [])) = do
-    msg <- getFirst <$> (zoomTransient e)
+    msg <- getFirst <$> zoomTransient e
     case msg of
         Just TR.Close -> #transient .= Nothing >> pure True
         Just TR.Up -> pure True
@@ -134,7 +134,7 @@ handleSQueueViewEvent (VtyEvent (V.EvKey (V.KChar 'r') [V.MCtrl])) = triggerSque
 handleSQueueViewEvent (VtyEvent (V.EvKey (V.KChar 's') [V.MCtrl])) =
     #transient .= Just sortTransient >> pure True -- could parameterise this
 handleSQueueViewEvent (VtyEvent e) = do
-    msg <- getFirst <$> (zoomTransient e)
+    msg <- getFirst <$> zoomTransient e
     case msg of
         Just TR.Close -> #transient .= Nothing >> pure True
         Just (TR.Msg msg') -> #transient .= Nothing >> handleSQueueViewEvent (AppEvent msg')
@@ -145,17 +145,10 @@ handleSQueueViewEvent (AppEvent (SlurmCommandSend msg)) = do
     job <- fmap selectedJob <$> preuse #jobQueueState
     case join job of
         Just job' -> do
-            let cmd = scontrolCommand msg job'
-            zoom #scontrolLogState (sendSlurmCommandCommand cmd) >> pure True
+            ch <- use #worker
+            liftIO $ runDiscard ch (slurm msg (job' ^. #jobId)) SlurmCommandReceive
+            return True
         Nothing -> pure False
-  where
-    scontrolCommand :: Command -> Job -> SlurmCommandCmd
-    scontrolCommand Cancel job = CancelJob [job ^. #jobId]
-    scontrolCommand Suspend job = SuspendJob [job ^. #jobId]
-    scontrolCommand Resume job = ResumeJob [job ^. #jobId]
-    scontrolCommand Hold job = HoldJob [job ^. #jobId]
-    scontrolCommand Release job = ReleaseJob [job ^. #jobId]
-    scontrolCommand Top job = TopJob [job ^. #jobId]
 handleSQueueViewEvent _ = pure False
 
 handleCommandLogViewEvent :: BrickEvent Name SlewEvent -> EventM Name AppState Bool
@@ -190,14 +183,22 @@ handleGlobalEvent (VtyEvent (V.EvKey V.KEsc [])) = haltIfSingleton >> popView
 handleGlobalEvent _ = pure ()
 
 handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
-handleEvent (AppEvent (SlurmCommandReceive output@(SlurmCommandLogEntry{result = Left _}))) = zoom #echoState (echo errorMessage) >> zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
+handleEvent (AppEvent (SlurmCommandReceive output@(SlurmCommandResult{result = Left _}))) = zoom #echoState (echo errorMessage) >> zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
   where
     errorMessage = "command failed, type C-l to see output"
 handleEvent (AppEvent (SlurmCommandReceive output)) = zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
 handleEvent (AppEvent Tick) = do
     sysTime <- liftIO getSystemTime
     #currentTime .= sysTime
-handleEvent (AppEvent (SQueueStatus jobs)) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
+handleEvent (AppEvent (SQueueStatus output@(SlurmCommandResult{result = Left _}))) =
+    zoom #echoState (echo errorMessage)
+        >> zoom
+            #scontrolLogState
+            (logSlurmCommandEvent (void output))
+        >> bumpUpdateTime
+  where
+    errorMessage = "squeue --json failed, type C-l to see output"
+handleEvent (AppEvent (SQueueStatus (SlurmCommandResult{result = Right (SlurmResponse{jobs = jobs})}))) = zoom #jobQueueState (updateJobList jobs) >> bumpUpdateTime
 handleEvent e = do
     curView <- use #view
     handled <- case head curView of
