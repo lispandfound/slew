@@ -12,7 +12,7 @@ import Brick (EventM, Padding (Pad), ViewportType (Vertical), Widget, hBox, padL
 import Brick.Widgets.Border (borderWithLabel)
 import Brick.Widgets.Center (centerLayer)
 import Data.Char (isDigit)
-import Fmt
+import Fmt (fmt, (+|), (|+))
 import Model.SlurmCommand (
     SlurmCommandResult (..),
     SlurmContext (..),
@@ -28,21 +28,23 @@ data SlurmCommandLogState n = SlurmCommandLogState
     }
     deriving (Generic)
 
+takeLines :: Int -> Text -> Text
+takeLines n = unlines . take n . lines
+
 drawEntry :: SlurmCommandResult () -> Widget n
 drawEntry res =
     vBox [commandLine, padLeft (Pad 2) resultArea]
   where
     ctx = res ^. #context
-
     commandLine = (txt . fmt) ("$ " +| ctx ^. #cmd |+ " ") <+> (hBox . map argFmt) (ctx ^. #args)
-
     resultArea = case res ^. #result of
         Left (ExecutionError ec) ->
-            txt ("[Exit " <> show ec <> "] ") <+> txt (ctx ^. #stderr)
+            txt . fmt $ "[Exit" +| ec |+ "] " +| ctx ^. #stderr |+ ""
         Left (DecodingError err) ->
-            txt "[Parse Error] " <+> txt err <+> txt "\n" <+> txt (ctx ^. #stdout)
+            txt . fmt $ "[Parse Error] " +| err |+ "\n" +| ctx ^. #stdout |+ ""
         Right _ ->
-            txt . unlines . take 20 . lines $ (ctx ^. #stderr) <> "\n" <> (ctx ^. #stdout)
+            txt . takeLines 20 $
+                (ctx ^. #stderr) <> "\n" <> (ctx ^. #stdout)
 
     argFmt arg = if all isDigit arg then (withAttr jobId . txt . toText) arg else (txt . toText) arg
 
