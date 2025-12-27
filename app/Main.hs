@@ -1,5 +1,4 @@
 {-# LANGUAGE NumericUnderscores #-}
-{-# LANGUAGE OverloadedStrings #-}
 
 module Main where
 
@@ -9,7 +8,7 @@ import Brick (
     showFirstCursor,
     zoom,
  )
-import qualified Brick.BChan as BC
+import Brick.BChan qualified as BC
 import Brick.Themes (Theme, themeToAttrMap)
 import Brick.Types (EventM)
 import Control.Concurrent (threadDelay)

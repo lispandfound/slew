@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module UI.JobPanel (drawJobPanel) where
 
 import Brick (
@@ -17,7 +15,7 @@ import Brick (
     (<=>),
  )
 import Brick.Widgets.Border (border)
-import qualified Data.Text as T
+import Data.Text qualified as T
 import Fmt (fixedF, fmt, (+|), (|+))
 import Model.Job (
     ExitCode (..),

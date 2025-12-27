@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-
 module UI.View (
     drawApp,
     drawSearchBar,

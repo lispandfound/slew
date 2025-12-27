@@ -1,10 +1,5 @@
-{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE NamedFieldPuns #-}
-{-# LANGUAGE OverloadedLabels #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
 
 module UI.JobList where
 
@@ -45,8 +40,8 @@ import Brick.Widgets.TabularList.Mixed (
     renderMixedTabularList,
  )
 
-import qualified Data.Text as T
-import qualified Graphics.Vty as V
+import Data.Text qualified as T
+import Graphics.Vty qualified as V
 import Optics.Label ()
 import Optics.Operators ((^.))
 import Optics.State (use)
@@ -56,7 +51,7 @@ import Data.Text.Zipper (getText)
 import Data.Time.Clock (DiffTime)
 import Data.Time.Clock.System (SystemTime (MkSystemTime))
 import Data.Vector (Vector)
-import qualified Data.Vector as Vec
+import Data.Vector qualified as Vec
 import Fmt (fmt, (+|), (|+))
 import Model.Job (
     Job (..),
