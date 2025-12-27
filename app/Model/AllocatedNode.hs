@@ -1,7 +1,3 @@
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE OverloadedStrings #-}
-
 module Model.AllocatedNode where
 
 import Data.Aeson

@@ -1,4 +1,3 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TemplateHaskell #-}
 
 module UI.Transient (
@@ -52,11 +51,11 @@ import Data.Tree.Zipper (
     parent,
     tree,
  )
-import qualified Graphics.Vty as V
+import Graphics.Vty qualified as V
 import Optics.Getter (view)
 import Optics.Label ()
 import Optics.Operators ((^.))
-import qualified UI.Themes as Th
+import UI.Themes qualified as Th
 
 data TransientPrefix m n = TransientPrefix
     { char :: Char
