@@ -9,7 +9,7 @@ RUN set -eux; \
 # Install GHCup and toolchain non-interactively
 ENV BOOTSTRAP_HASKELL_NONINTERACTIVE=1
 RUN curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
-ARG GHC_VERSION=9.10.2
+ARG GHC_VERSION=9.12.2
 # Make GHCup environment available
 ENV PATH="/root/.ghcup/bin:/root/.cabal/bin:$PATH"
 RUN . /root/.ghcup/env && \
