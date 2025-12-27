@@ -5,16 +5,30 @@ module Model.SlurmCommand (
     SlurmError (..),
     SlurmContext (..),
     Command (..),
+    SlurmRequest (..),
+    ProcessRunner,
+    Stream (..),
     slurm,
     squeue,
 ) where
 
 import Optics.Label ()
-import System.Process (CreateProcess, proc)
+import System.Process (CreateProcess, ProcessHandle, proc)
+
+data Stream = Stdout | Stderr deriving (Show)
+data SlurmRequest b = SlurmRequest CreateProcess Stream (SlurmCommandResult ByteString -> b)
+
+type ProcessRunner m =
+    forall a.
+    CreateProcess ->
+    (Maybe Handle -> Maybe Handle -> Maybe Handle -> ProcessHandle -> m a) ->
+    m a
 
 data SlurmError
     = ExecutionError {exitCode :: Int}
     | DecodingError {parseError :: Text}
+    | TimeoutError
+    | BrokenHandle Stream
     deriving (Show, Generic)
 
 data SlurmContext = SlurmContext

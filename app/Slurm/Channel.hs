@@ -1,9 +1,9 @@
-module Slurm.Channel where
+module Slurm.Channel (worker, runJson, runJsonErr, runDiscard, SlurmRequest) where
 
 import Brick.BChan (BChan, readBChan, writeBChan)
 import Data.Aeson (FromJSON, eitherDecode)
 import Data.ByteString (hGetContents)
-import Model.SlurmCommand (SlurmCommandResult (..), SlurmContext (..), SlurmError (..))
+import Model.SlurmCommand (ProcessRunner, SlurmCommandResult (..), SlurmContext (..), SlurmError (..), SlurmRequest (..), Stream (..))
 import Optics.Setter (over)
 import System.Exit (ExitCode (..))
 import System.Process (
@@ -13,59 +13,55 @@ import System.Process (
     waitForProcess,
     withCreateProcess,
  )
+import System.Timeout (timeout)
 
-data Stream = Stdout | Stderr
-data SlurmRequest b = SlurmRequest
-    { cp :: CreateProcess
-    , read :: Stream
-    , callback :: SlurmCommandResult ByteString -> b
-    }
+commandName :: CmdSpec -> String
+commandName (ShellCommand s) = s
+commandName (RawCommand c _) = c
+
+commandArgs :: CmdSpec -> [String]
+commandArgs (ShellCommand _) = []
+commandArgs (RawCommand _ a) = a
+
+context :: CmdSpec -> ByteString -> ByteString -> SlurmContext
+context procSpec out err = SlurmContext (commandName procSpec) (commandArgs procSpec) (decodeUtf8 out) (decodeUtf8 err)
+
+resultFor :: ExitCode -> Stream -> Either SlurmError ByteString -> Either SlurmError ByteString -> Either SlurmError ByteString
+resultFor (ExitFailure c) _ _ _ = Left (ExecutionError c)
+resultFor _ Stdout out _ = out
+resultFor _ Stderr _ err = err
+
+readOrTimeout :: (MonadIO m) => Int -> Handle -> m (Either SlurmError ByteString)
+readOrTimeout maxTime handle = maybeToRight TimeoutError <$> liftIO (timeout maxTime (hGetContents handle))
+
+runSlurmProcess ::
+    (MonadIO m) =>
+    ProcessRunner m ->
+    Stream ->
+    CreateProcess ->
+    m (SlurmCommandResult ByteString)
+runSlurmProcess runner stream cp = runner cp $ \mOut mErr _ ph -> do
+    outBytes <- maybe (return $ Left (BrokenHandle Stdout)) (readOrTimeout 60) mOut
+    errBytes <- maybe (return $ Left (BrokenHandle Stderr)) (readOrTimeout 60) mErr
+    exitStatus <- liftIO $ waitForProcess ph
+    return $
+        SlurmCommandResult
+            { context = context (cmdspec cp) (fromRight mempty outBytes) (fromRight mempty errBytes)
+            , result = resultFor exitStatus stream outBytes errBytes
+            }
 
 worker :: BChan (SlurmRequest b) -> BChan b -> IO ()
 worker input output = forever $ do
-    SlurmRequest procSpec stream cb <- readBChan input
-    -- Extract metadata for our data types
-    let (commandName, commandArgs) = case cmdspec procSpec of
-            ShellCommand s -> (s, [])
-            RawCommand c a -> (c, a)
-    let pSet = procSpec{std_out = CreatePipe, std_err = CreatePipe}
-    result <- withCreateProcess pSet $ \mOut mErr _ ph -> do
-        outBytes <- maybe (return mempty) hGetContents mOut
-        errBytes <- maybe (return mempty) hGetContents mErr
-        exitStatus <- waitForProcess ph
-        let result = case stream of
-                Stdout -> outBytes
-                Stderr -> errBytes
-        case exitStatus of
-            ExitSuccess ->
-                return $
-                    SlurmCommandResult
-                        ( SlurmContext
-                            { cmd = commandName
-                            , args = commandArgs
-                            , stdout = decodeUtf8 outBytes
-                            , stderr = decodeUtf8 errBytes
-                            }
-                        )
-                        (Right result)
-            ExitFailure code ->
-                return $
-                    SlurmCommandResult
-                        ( SlurmContext
-                            { cmd = commandName
-                            , args = commandArgs
-                            , stdout = decodeUtf8 outBytes
-                            , stderr = decodeUtf8 errBytes
-                            }
-                        )
-                        (Left (ExecutionError code))
+    SlurmRequest cp stream cb <- readBChan input
+    let cp' = cp{std_out = CreatePipe, std_err = CreatePipe}
+    result <- runSlurmProcess withCreateProcess stream cp'
     writeBChan output (cb result)
+
+parseJson :: (FromJSON a) => SlurmCommandResult ByteString -> SlurmCommandResult a
+parseJson = over #result join . fmap (first (DecodingError . toText) . eitherDecode . toLazy)
 
 runJsonFrom :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> Stream -> (SlurmCommandResult a -> b) -> IO ()
 runJsonFrom chan process stream callback = writeBChan chan $ SlurmRequest process stream (callback . parseJson)
-  where
-    parseJson :: (FromJSON a) => SlurmCommandResult ByteString -> SlurmCommandResult a
-    parseJson = over #result join . fmap (first (DecodingError . toText) . eitherDecode . toLazy)
 
 runJsonErr :: (FromJSON a) => BChan (SlurmRequest b) -> CreateProcess -> (SlurmCommandResult a -> b) -> IO ()
 runJsonErr chan process = runJsonFrom chan process Stderr

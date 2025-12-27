@@ -39,6 +39,10 @@ drawEntry res =
             txt . fmt $ "[Exit" +| ec |+ "] " +| ctx ^. #stderr |+ ""
         Left (DecodingError err) ->
             txt . fmt $ "[Parse Error] " +| err |+ "\n" +| ctx ^. #stdout |+ ""
+        Left TimeoutError ->
+            txt "Timeout"
+        Left (BrokenHandle _) ->
+            txt "Broken handle"
         Right _ ->
             txt . takeLines 20 $
                 (ctx ^. #stderr) <> "\n" <> (ctx ^. #stdout)
