@@ -31,6 +31,9 @@ resultFor (ExitFailure c) _ _ _ = Left (ExecutionError c)
 resultFor _ Stdout out _ = out
 resultFor _ Stderr _ err = err
 
+seconds :: Int
+seconds = 1_000_000
+
 readOrTimeout :: (MonadIO m) => Int -> Handle -> m (Either SlurmError ByteString)
 readOrTimeout maxTime handle = maybeToRight TimeoutError <$> liftIO (timeout maxTime (hGetContents handle))
 
@@ -41,8 +44,8 @@ runSlurmProcess ::
     CreateProcess ->
     m (SlurmCommandResult ByteString)
 runSlurmProcess runner stream cp = runner cp $ \mOut mErr _ ph -> do
-    outBytes <- maybe (return $ Left (BrokenHandle Stdout)) (readOrTimeout 60) mOut
-    errBytes <- maybe (return $ Left (BrokenHandle Stderr)) (readOrTimeout 60) mErr
+    outBytes <- maybe (return $ Left (BrokenHandle Stdout)) (readOrTimeout (60 * seconds)) mOut
+    errBytes <- maybe (return $ Left (BrokenHandle Stderr)) (readOrTimeout (60 * seconds)) mErr
     exitStatus <- liftIO $ waitForProcess ph
     return $
         SlurmCommandResult
