@@ -9,10 +9,11 @@ module Model.AppState (
 ) where
 
 import Brick.BChan (BChan)
-import Data.Time.Clock.System (SystemTime, getSystemTime)
 import Model.Options (Options)
 import Model.SQueue (SlurmResponse)
 import Model.SlurmCommand (Command (..), SlurmCommandResult (..))
+import Model.TimingState (TimingState, initialTimingState)
+import Model.ViewState (View (..), ViewState, initialViewState)
 import Optics.Label ()
 import Slurm.Channel (SlurmRequest)
 import UI.Echo (EchoState, echoStateWith)
@@ -31,9 +32,6 @@ data SlewEvent = SQueueStatus (SlurmCommandResult SlurmResponse) | SlurmCommandS
 data Name = SearchEditor | JobListWidget | SlurmCommandLogWidget | TransientWidget
     deriving (Eq, Ord, Show)
 
-data View = SQueueView | CommandLogView | NodeView
-    deriving (Eq, Show)
-
 ------------------------------------------------------------
 -- App State
 
@@ -41,10 +39,9 @@ data AppState = AppState
     { jobQueueState :: JobQueueState Name
     , transient :: Maybe (TR.TransientState SlewEvent Name)
     , scontrolLogState :: SlurmCommandLogState Name
-    , currentTime :: SystemTime
-    , lastUpdate :: Maybe SystemTime
+    , timingState :: TimingState
     , echoState :: EchoState
-    , view :: NonEmpty View
+    , viewState :: ViewState
     , options :: Options
     , worker :: BChan (SlurmRequest SlewEvent)
     }
@@ -58,16 +55,15 @@ initialMessage = "type C-c to interact with slurm jobs, C-l to view logs, C-s to
 
 initialState :: BChan (SlurmRequest SlewEvent) -> Options -> IO AppState
 initialState chan options = do
-    currentTime' <- getSystemTime
+    timing <- initialTimingState
     return $
         AppState
             { jobQueueState = jobList SearchEditor JobListWidget
             , transient = Nothing
             , scontrolLogState = scontrolLog SlurmCommandLogWidget
-            , currentTime = currentTime'
-            , lastUpdate = Nothing
+            , timingState = timing
             , echoState = echoStateWith initialMessage
-            , view = SQueueView :| []
+            , viewState = initialViewState
             , options = options
             , worker = chan
             }
