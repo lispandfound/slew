@@ -33,6 +33,8 @@ executable slew
         UI.View
         UI.Event
         UI.Menus
+        UI.ViewState
+        UI.TimingState
         Slurm.Channel
         UI.Poller
         UI.JobPanel

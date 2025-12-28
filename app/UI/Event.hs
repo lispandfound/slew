@@ -3,8 +3,6 @@ module UI.Event (
 ) where
 
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, zoom)
-import Data.List.NonEmpty ((<|))
-import Data.Time.Clock.System (getSystemTime)
 import qualified Graphics.Vty as V
 import Model.AppState (
     AppState (..),
@@ -18,12 +16,13 @@ import Model.Job (
 import Model.Options (Options (tailTemplate))
 import Model.SQueue (SlurmResponse (..))
 import Model.SlurmCommand (Command, SlurmCommandResult (..), slurm, squeue)
-import Model.TimingState (updateCurrentTime, updateLastUpdate)
-import Model.ViewState (View (..), currentView, isSingleton, popView, pushView, ViewState)
+import Model.ViewState (View (..), currentView)
+import UI.TimingState (handleTick, handleUpdateTime)
+import UI.ViewState (handleViewPopWithHalt, handleViewPush)
 import Optics.Core (Lens')
 import Optics.Operators ((^.))
 import Optics.State (preuse, use)
-import Optics.State.Operators ((%=), (.=))
+import Optics.State.Operators ((.=))
 import Slurm.Channel (runDiscard, runJsonErr)
 import UI.Echo (clear, echo)
 import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKey)
@@ -42,9 +41,7 @@ triggerSqueue = do
     liftIO (runJsonErr ch squeue SQueueStatus)
 
 bumpUpdateTime :: EventM n AppState ()
-bumpUpdateTime = do
-    curTime <- liftIO getSystemTime
-    #timingState %= updateLastUpdate (pure curTime)
+bumpUpdateTime = zoom #timingState handleUpdateTime
 
 ------------------------------------------------------------
 -- Transient Menu Handling
@@ -143,27 +140,13 @@ isKeyPress :: BrickEvent Name SlewEvent -> Bool
 isKeyPress (VtyEvent (V.EvKey _ _)) = True
 isKeyPress _ = False
 
-modifyViewState :: (ViewState -> ViewState) -> EventM Name AppState ()
-modifyViewState f = #viewState %= f
-
-pushViewToStack :: View -> EventM Name AppState ()
-pushViewToStack = modifyViewState . pushView
-
-popViewFromStack :: EventM Name AppState ()
-popViewFromStack = modifyViewState popView
-
-haltIfSingleton :: EventM Name AppState ()
-haltIfSingleton = do
-    vs <- use #viewState
-    when (isSingleton vs) halt
-
 ------------------------------------------------------------
 -- Global Event Handlers
 
 handleGlobalEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleGlobalEvent (VtyEvent (V.EvKey (V.KChar 'q') [V.MCtrl])) = halt
-handleGlobalEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = pushViewToStack CommandLogView
-handleGlobalEvent (VtyEvent (V.EvKey V.KEsc [])) = haltIfSingleton >> popViewFromStack
+handleGlobalEvent (VtyEvent (V.EvKey (V.KChar 'l') [V.MCtrl])) = zoom #viewState (handleViewPush CommandLogView)
+handleGlobalEvent (VtyEvent (V.EvKey V.KEsc [])) = zoom #viewState handleViewPopWithHalt
 handleGlobalEvent _ = pure ()
 
 ------------------------------------------------------------
@@ -179,10 +162,9 @@ handleSlurmCommandReceive output@(SlurmCommandResult{result = Left _}) =
 handleSlurmCommandReceive output =
     zoom #scontrolLogState (logSlurmCommandEvent output) >> triggerSqueue
 
-handleTick :: EventM Name AppState ()
-handleTick = do
-    sysTime <- liftIO getSystemTime
-    #timingState %= updateCurrentTime sysTime
+-- handleTick is now imported from UI.TimingState and used with zoom
+handleAppTick :: EventM Name AppState ()
+handleAppTick = zoom #timingState handleTick
 
 handleSQueueStatus :: SlurmCommandResult SlurmResponse -> EventM Name AppState ()
 handleSQueueStatus output@(SlurmCommandResult{result = Left _}) =
@@ -201,7 +183,7 @@ handleEvent :: BrickEvent Name SlewEvent -> EventM Name AppState ()
 handleEvent (AppEvent (SlurmCommandReceive output)) =
     handleSlurmCommandReceive output
 handleEvent (AppEvent Tick) =
-    handleTick
+    handleAppTick
 handleEvent (AppEvent (SQueueStatus output)) =
     handleSQueueStatus output
 handleEvent e = do
