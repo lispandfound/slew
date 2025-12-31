@@ -28,8 +28,13 @@ executable slew
         Model.Job
         UI.Transient
         Model.AppState
+        Model.ViewState
+        Model.TimingState
         UI.View
         UI.Event
+        UI.Menus
+        UI.ViewState
+        UI.TimingState
         Slurm.Channel
         UI.Poller
         UI.JobPanel
