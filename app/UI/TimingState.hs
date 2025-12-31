@@ -3,18 +3,19 @@ module UI.TimingState (
     handleUpdateTime,
 ) where
 
-import Brick (EventM, get, put)
+import Brick (EventM)
 import Data.Time.Clock.System (getSystemTime)
-import Model.TimingState (TimingState, updateCurrentTime, updateLastUpdate)
+import Model.TimingState (TimingState (..))
+import Optics.State.Operators ((.=))
 
 -- | Handle a tick event by updating the current time
 handleTick :: EventM n TimingState ()
 handleTick = do
     sysTime <- liftIO getSystemTime
-    get >>= put . updateCurrentTime sysTime
+    #currentTime .= sysTime
 
 -- | Update the last update time
 handleUpdateTime :: EventM n TimingState ()
 handleUpdateTime = do
     curTime <- liftIO getSystemTime
-    get >>= put . updateLastUpdate (pure curTime)
+    #lastUpdate .= pure curTime

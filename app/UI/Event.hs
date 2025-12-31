@@ -3,10 +3,9 @@ module UI.Event (
 ) where
 
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, zoom)
-import qualified Graphics.Vty as V
+import Graphics.Vty qualified as V
 import Model.AppState (
     AppState (..),
-    Category (..),
     Name,
     SlewEvent (..),
  )
@@ -17,8 +16,6 @@ import Model.Options (Options (tailTemplate))
 import Model.SQueue (SlurmResponse (..))
 import Model.SlurmCommand (Command, SlurmCommandResult (..), slurm, squeue)
 import Model.ViewState (View (..), currentView)
-import UI.TimingState (handleTick, handleUpdateTime)
-import UI.ViewState (handleViewPopWithHalt, handleViewPush)
 import Optics.Core (Lens')
 import Optics.Operators ((^.))
 import Optics.State (preuse, use)
@@ -29,8 +26,10 @@ import UI.JobList (handleJobQueueEvent, selectedJob, updateJobList, updateSortKe
 import UI.Menus (scontrolTransient, sortListByCat, sortTransient)
 import UI.Poller (tailFile)
 import UI.SlurmCommand (logSlurmCommandEvent)
+import UI.TimingState (handleTick, handleUpdateTime)
 import UI.Transient (TransientMsg)
-import qualified UI.Transient as TR
+import UI.Transient qualified as TR
+import UI.ViewState (handleViewPopWithHalt, handleViewPush)
 
 ------------------------------------------------------------
 -- SQueue Operations

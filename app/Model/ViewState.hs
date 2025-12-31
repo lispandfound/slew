@@ -8,7 +8,7 @@ module Model.ViewState (
     isSingleton,
 ) where
 
-import Data.List.NonEmpty (NonEmpty (..), (<|))
+import Data.List.NonEmpty ((<|))
 import Optics.Label ()
 
 data View = SQueueView | CommandLogView | NodeView

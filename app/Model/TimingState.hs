@@ -1,8 +1,6 @@
 module Model.TimingState (
     TimingState (..),
     initialTimingState,
-    updateCurrentTime,
-    updateLastUpdate,
 ) where
 
 import Data.Time.Clock.System (SystemTime, getSystemTime)
@@ -15,12 +13,4 @@ data TimingState = TimingState
     deriving (Generic, Show)
 
 initialTimingState :: IO TimingState
-initialTimingState = do
-    now <- getSystemTime
-    return $ TimingState now Nothing
-
-updateCurrentTime :: SystemTime -> TimingState -> TimingState
-updateCurrentTime time st = st{currentTime = time}
-
-updateLastUpdate :: Maybe SystemTime -> TimingState -> TimingState
-updateLastUpdate time st = st{lastUpdate = time}
+initialTimingState = TimingState <$> getSystemTime <*> pure Nothing

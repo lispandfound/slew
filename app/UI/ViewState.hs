@@ -4,20 +4,20 @@ module UI.ViewState (
     handleViewPopWithHalt,
 ) where
 
-import Brick (EventM, halt, get, put)
+import Brick (EventM, halt)
 import Model.ViewState (View, ViewState, isSingleton, popView, pushView)
 
 -- | Push a view onto the view stack
 handleViewPush :: View -> EventM n ViewState ()
-handleViewPush view = get >>= put . pushView view
+handleViewPush view = modify (pushView view)
 
--- | Pop a view from the view stack  
+-- | Pop a view from the view stack
 handleViewPop :: EventM n ViewState ()
-handleViewPop = get >>= put . popView
+handleViewPop = modify popView
 
 -- | Pop a view from the view stack, halting if only one view remains
 handleViewPopWithHalt :: EventM n ViewState ()
 handleViewPopWithHalt = do
-    state <- get
-    when (isSingleton state) halt
+    shouldHalt <- gets isSingleton
+    when shouldHalt halt
     handleViewPop
