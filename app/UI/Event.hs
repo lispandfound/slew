@@ -105,8 +105,8 @@ handleSQueueViewEvent (AppEvent (SortBy category)) =
     zoom #jobQueueState (updateSortKey (sortListByCat category)) >> pure True
 handleSQueueViewEvent (AppEvent (SlurmCommandSend msg)) =
     handleSlurmCommand msg
-handleSQueueViewEvent (AppEvent (FilterBy User)) = #squeueCommand .= squeueAll >> triggerSqueue >> pure True
-handleSQueueViewEvent (AppEvent (FilterBy NoFilter)) = #squeueCommand .= squeueMe >> triggerSqueue >> pure True
+handleSQueueViewEvent (AppEvent (FilterBy User)) = #squeueCommand .= squeueMe >> triggerSqueue >> pure True
+handleSQueueViewEvent (AppEvent (FilterBy NoFilter)) = #squeueCommand .= squeueAll >> triggerSqueue >> pure True
 handleSQueueViewEvent (AppEvent TriggerSQueue) = triggerSqueue >> pure True
 handleSQueueViewEvent _ = pure False
 
