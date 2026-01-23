@@ -1,11 +1,13 @@
 module UI.Event (
     handleEvent,
+    startup,
 ) where
 
 import Brick (BrickEvent (AppEvent, VtyEvent), EventM, halt, nestEventM, zoom)
 import Graphics.Vty qualified as V
 import Model.AppState (
     AppState (..),
+    Filter (..),
     Name,
     SlewEvent (..),
  )
@@ -14,7 +16,7 @@ import Model.Job (
  )
 import Model.Options (Options (tailTemplate))
 import Model.SQueue (SlurmResponse (..))
-import Model.SlurmCommand (Command, SlurmCommandResult (..), slurm, squeue)
+import Model.SlurmCommand (SlurmCommand, SlurmCommandResult (..), squeueAll, squeueMe, toProc)
 import Model.ViewState (View (..), currentView)
 import Optics.Core (Lens')
 import Optics.Operators ((^.))
@@ -37,7 +39,8 @@ import UI.ViewState (handleViewPopWithHalt, handleViewPush)
 triggerSqueue :: EventM n AppState ()
 triggerSqueue = do
     ch <- use #worker
-    liftIO (runJsonErr ch squeue SQueueStatus)
+    cmd <- use #squeueCommand
+    liftIO (runJsonErr ch (toProc cmd) SQueueStatus)
 
 bumpUpdateTime :: EventM n AppState ()
 bumpUpdateTime = zoom #timingState handleUpdateTime
@@ -72,6 +75,14 @@ handleJobFile field = do
         result <- tailFile (job ^. field) (opts ^. #tailTemplate)
         either (zoom #echoState . echo) (const (pure ())) result
 
+initialMessage :: Text
+initialMessage = "type C-c to interact with slurm jobs, C-l to view logs, C-s to sort/filter, and C-o/C-e to tail job output/error"
+
+startup :: Maybe Text -> EventM Name AppState ()
+startup message = do
+    zoom #echoState (echo $ fromMaybe initialMessage message)
+    triggerSqueue
+
 ------------------------------------------------------------
 -- SQueue View Event Handlers
 
@@ -94,6 +105,9 @@ handleSQueueViewEvent (AppEvent (SortBy category)) =
     zoom #jobQueueState (updateSortKey (sortListByCat category)) >> pure True
 handleSQueueViewEvent (AppEvent (SlurmCommandSend msg)) =
     handleSlurmCommand msg
+handleSQueueViewEvent (AppEvent (FilterBy User)) = #squeueCommand .= squeueAll >> triggerSqueue >> pure True
+handleSQueueViewEvent (AppEvent (FilterBy NoFilter)) = #squeueCommand .= squeueMe >> triggerSqueue >> pure True
+handleSQueueViewEvent (AppEvent TriggerSQueue) = triggerSqueue >> pure True
 handleSQueueViewEvent _ = pure False
 
 handleTransientEscape :: V.Event -> EventM Name AppState Bool
@@ -113,13 +127,13 @@ handleTransientOrJobList e = do
         Just TR.Next -> pure True
         _ -> zoom #jobQueueState (handleJobQueueEvent e)
 
-handleSlurmCommand :: Command -> EventM Name AppState Bool
-handleSlurmCommand msg = do
+handleSlurmCommand :: (Job -> SlurmCommand) -> EventM Name AppState Bool
+handleSlurmCommand command = do
     job <- fmap selectedJob <$> preuse #jobQueueState
     case join job of
         Just job' -> do
             ch <- use #worker
-            liftIO $ runDiscard ch (slurm msg (job' ^. #jobId)) SlurmCommandReceive
+            liftIO $ runDiscard ch (toProc $ command job') SlurmCommandReceive
             return True
         Nothing -> pure False
 

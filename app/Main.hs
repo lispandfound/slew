@@ -6,7 +6,6 @@ import Brick (
     App (..),
     customMain,
     showFirstCursor,
-    zoom,
  )
 import Brick.BChan qualified as BC
 import Brick.Themes (Theme, themeToAttrMap)
@@ -18,18 +17,16 @@ import Graphics.Vty.CrossPlatform (mkVty)
 import Model.AppState (
     AppState (..),
     Name,
-    SlewEvent (SQueueStatus, Tick),
+    SlewEvent (Tick, TriggerSQueue),
     initialState,
  )
 import Model.Options (Options (Options, pollInterval, theme))
-import Model.SlurmCommand (squeue)
 import Optics.Operators ((^.))
 import Options.Applicative (Parser, ParserInfo, auto, execParser, fullDesc, header, help, helper, info, long, metavar, option, short, showDefault, str, value)
-import Slurm.Channel (runJsonErr, worker)
+import Slurm.Channel (worker)
 import System.Environment.Blank (getEnv)
 import System.FilePath (combine)
-import UI.Echo (echo)
-import UI.Event (handleEvent)
+import UI.Event (handleEvent, startup)
 import UI.Themes (defaultTheme, loadTheme)
 import UI.View (drawApp)
 
@@ -88,13 +85,13 @@ main = do
     let slewThemePath = (opts ^. #theme) <|> combine <$> slewConfigDirectory <*> pure "theme.ini"
         asyncActions =
             [ tickThread (1 * seconds) (BC.writeBChan eventChannel Tick)
-            , tickThread (opts ^. #pollInterval * seconds) (runJsonErr workerChannel squeue SQueueStatus)
+            , tickThread (opts ^. #pollInterval * seconds) (BC.writeBChan eventChannel TriggerSQueue)
             , worker workerChannel eventChannel
             ]
     themeOrErr <- maybe (pure . Right $ defaultTheme) loadTheme slewThemePath
     withAsyncs asyncActions $ do
         let buildVty = mkVty defaultConfig
             theme = fromRight defaultTheme themeOrErr
-            initialEvent = either (zoom #echoState . echo . toText) (const $ pure ()) themeOrErr
+            initialEvent = startup $ (fmap toText . leftToMaybe) themeOrErr
         initialVty <- buildVty
         void $ customMain initialVty buildVty (Just eventChannel) (app initialEvent theme) is

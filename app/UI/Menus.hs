@@ -5,13 +5,13 @@ module UI.Menus (
 ) where
 
 import Brick.Widgets.Core (txt, withAttr)
-import Model.AppState (Category (..), Name, SlewEvent (..))
+import Model.AppState (Category (..), Filter (..), Name, SlewEvent (..))
 import Model.Job (Job (..))
-import Model.SlurmCommand (Command (Cancel, Hold, Resume, Suspend, Top))
+import Model.SlurmCommand (cancel, hold, resume, suspend, top)
 import Optics.Getter (view)
 import Optics.Label ()
 import UI.Themes (header, transient)
-import qualified UI.Transient as TR
+import UI.Transient qualified as TR
 
 scontrolTransient :: TR.TransientState SlewEvent Name
 scontrolTransient =
@@ -21,21 +21,22 @@ scontrolTransient =
                 TR.horizontalLayout
                     [ TR.verticalLayoutWithLabel
                         (withAttr (transient <> header) $ txt "Stop or Start")
-                        [ TR.item 'h' "Hold" (SlurmCommandSend Hold)
-                        , TR.item 'r' "Resume" (SlurmCommandSend Resume)
-                        , TR.item 's' "Suspend" (SlurmCommandSend Suspend)
-                        , TR.item 'c' "Cancel" (SlurmCommandSend Cancel)
+                        [ TR.item 'h' "Hold" (SlurmCommandSend hold)
+                        , TR.item 'r' "Release" (SlurmCommandSend hold)
+                        , TR.item 'R' "Resume" (SlurmCommandSend resume)
+                        , TR.item 's' "Suspend" (SlurmCommandSend suspend)
+                        , TR.item 'c' "Cancel" (SlurmCommandSend cancel)
                         ]
                     , TR.verticalLayoutWithLabel
                         (withAttr (transient <> header) $ txt "Priority")
-                        [ TR.item 't' "Top" (SlurmCommandSend Top)
+                        [ TR.item 't' "Top" (SlurmCommandSend top)
                         ]
                     ]
             ]
 
 sortTransient :: TR.TransientState SlewEvent Name
 sortTransient =
-    TR.menu "Job Sorting" $
+    TR.menu "Job Sorting and Filtering" $
         TR.horizontalLayout
             [ TR.verticalLayoutWithLabel
                 (withAttr (transient <> header) $ txt "Name of")
@@ -58,6 +59,11 @@ sortTransient =
                 (withAttr (transient <> header) $ txt "Resources")
                 [ TR.item 'c' "CPUs" (SortBy CPUs)
                 , TR.item 'm' "Memory (per node)" (SortBy Memory)
+                ]
+            , TR.verticalLayoutWithLabel
+                (withAttr (transient <> header) $ txt "Filtering (triggers squeue)")
+                [ TR.item 'm' "Me" (FilterBy User)
+                , TR.item 'a' "All" (FilterBy NoFilter)
                 ]
             ]
 

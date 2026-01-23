@@ -1,34 +1,36 @@
 module Model.AppState (
     AppState (..),
     SlewEvent (..),
-    Command (..),
     Category (..),
     Name (..),
     View (..),
+    Filter (..),
     initialState,
 ) where
 
 import Brick.BChan (BChan)
+import Model.Job (Job)
 import Model.Options (Options)
 import Model.SQueue (SlurmResponse)
-import Model.SlurmCommand (Command (..), SlurmCommandResult (..))
+import Model.SlurmCommand (SlurmCommand, SlurmCommandResult (..), squeueMe)
 import Model.TimingState (TimingState, initialTimingState)
 import Model.ViewState (View (..), ViewState, initialViewState)
 import Optics.Label ()
 import Slurm.Channel (SlurmRequest)
-import UI.Echo (EchoState, echoStateWith)
+import UI.Echo (EchoState, echoState)
 import UI.JobList (JobQueueState, jobList)
 import UI.SlurmCommand (
     SlurmCommandLogState,
     scontrolLog,
  )
-import qualified UI.Transient as TR
+import UI.Transient qualified as TR
 
 ------------------------------------------------------------
 -- Event Messages
 
 data Category = Account | CPUs | StartTime | EndTime | JobName | UserName | Memory deriving (Show)
-data SlewEvent = SQueueStatus (SlurmCommandResult SlurmResponse) | SlurmCommandSend Command | SlurmCommandReceive (SlurmCommandResult ()) | SortBy Category | Tick deriving (Show)
+data Filter = User | NoFilter deriving (Show)
+data SlewEvent = SQueueStatus (SlurmCommandResult SlurmResponse) | SlurmCommandSend (Job -> SlurmCommand) | SlurmCommandReceive (SlurmCommandResult ()) | SortBy Category | FilterBy Filter | TriggerSQueue | Tick
 data Name = SearchEditor | JobListWidget | SlurmCommandLogWidget | TransientWidget
     deriving (Eq, Ord, Show)
 
@@ -43,15 +45,13 @@ data AppState = AppState
     , echoState :: EchoState
     , viewState :: ViewState
     , options :: Options
+    , squeueCommand :: SlurmCommand
     , worker :: BChan (SlurmRequest SlewEvent)
     }
     deriving (Generic)
 
 ------------------------------------------------------------
 -- Initial State
-
-initialMessage :: Text
-initialMessage = "type C-c to interact with slurm jobs, C-l to view logs, C-s to sort, and C-o to tail job output"
 
 initialState :: BChan (SlurmRequest SlewEvent) -> Options -> IO AppState
 initialState chan options = do
@@ -62,8 +62,9 @@ initialState chan options = do
             , transient = Nothing
             , scontrolLogState = scontrolLog SlurmCommandLogWidget
             , timingState = timing
-            , echoState = echoStateWith initialMessage
+            , echoState = echoState
             , viewState = initialViewState
             , options = options
+            , squeueCommand = squeueMe
             , worker = chan
             }

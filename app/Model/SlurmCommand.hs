@@ -4,13 +4,39 @@ module Model.SlurmCommand (
     SlurmCommandResult (..),
     SlurmError (..),
     SlurmContext (..),
-    Command (..),
-    slurm,
+    SlurmRequest (..),
+    ProcessRunner,
+    Stream (..),
+    SlurmCommand,
+    toProc,
     squeue,
+    squeueMe,
+    squeueAll,
+    cancel,
+    suspend,
+    top,
+    hold,
+    resume,
+    release,
 ) where
 
+import Model.Job (Job (..))
+import Optics.Getter (view)
 import Optics.Label ()
-import System.Process (CreateProcess, proc)
+import System.Process (CreateProcess, ProcessHandle, proc)
+
+data Stream = Stdout | Stderr deriving (Show)
+data SlurmRequest b = SlurmRequest CreateProcess Stream (SlurmCommandResult ByteString -> b)
+newtype SlurmCommand = SlurmCommand {cmd :: CreateProcess} deriving (Generic, Show)
+
+toProc :: SlurmCommand -> CreateProcess
+toProc = view #cmd
+
+type ProcessRunner m =
+    forall a.
+    CreateProcess ->
+    (Maybe Handle -> Maybe Handle -> Maybe Handle -> ProcessHandle -> m a) ->
+    m a
 
 data SlurmError
     = ExecutionError {exitCode :: Int}
@@ -31,15 +57,32 @@ data SlurmCommandResult a = SlurmCommandResult
     }
     deriving (Show, Generic, Functor)
 
-data Command = Cancel | Suspend | Resume | Hold | Release | Top deriving (Show)
+withJobId :: String -> [String] -> Job -> SlurmCommand
+withJobId cmd args = SlurmCommand . proc cmd . (args <>) . pure . show . view #jobId
 
-slurm :: Command -> Int -> CreateProcess
-slurm Cancel job = proc "scancel" [show job]
-slurm Suspend job = proc "scontrol" ["suspend", show job]
-slurm Resume job = proc "scontrol" ["resume", show job]
-slurm Hold job = proc "scontrol" ["hold", show job]
-slurm Release job = proc "scontrol" ["release", show job]
-slurm Top job = proc "scontrol" ["top", show job]
+cancel :: Job -> SlurmCommand
+cancel = withJobId "scancel" []
 
-squeue :: CreateProcess
-squeue = proc "squeue" ["--json"]
+suspend :: Job -> SlurmCommand
+suspend = withJobId "scontrol" ["suspend"]
+
+resume :: Job -> SlurmCommand
+resume = withJobId "scontrol" ["resume"]
+
+hold :: Job -> SlurmCommand
+hold = withJobId "scontrol" ["hold"]
+
+release :: Job -> SlurmCommand
+release = withJobId "scontrol" ["release"]
+
+top :: Job -> SlurmCommand
+top = withJobId "scontrol" ["top"]
+
+squeue :: [String] -> SlurmCommand
+squeue args = SlurmCommand $ proc "squeue" ("--json" : args)
+
+squeueAll :: SlurmCommand
+squeueAll = squeue []
+
+squeueMe :: SlurmCommand
+squeueMe = squeue ["--me"]
