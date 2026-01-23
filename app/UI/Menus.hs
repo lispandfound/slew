@@ -60,11 +60,12 @@ sortTransient =
                 [ TR.item 'c' "CPUs" (SortBy CPUs)
                 , TR.item 'm' "Memory (per node)" (SortBy Memory)
                 ]
-            , TR.verticalLayoutWithLabel
-                (withAttr (transient <> header) $ txt "Filtering (triggers squeue)")
-                [ TR.item 'm' "Me" (FilterBy User)
-                , TR.item 'a' "All" (FilterBy NoFilter)
-                ]
+            , TR.submenu 'f' "Filtering" $
+                TR.verticalLayoutWithLabel
+                    (withAttr (transient <> header) $ txt "Filtering (triggers squeue)")
+                    [ TR.item 'm' "Me" (FilterBy User)
+                    , TR.item 'a' "All" (FilterBy NoFilter)
+                    ]
             ]
 
 sortListByCat :: Category -> Job -> Job -> Ordering
